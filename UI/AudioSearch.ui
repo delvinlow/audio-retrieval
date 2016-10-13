@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>841</width>
+    <height>536</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>CS2108 Audio Search</string>
+  </property>
+  <property name="windowIcon">
+   <iconset>
+    <normaloff>assets/ic_window_icon.png</normaloff>assets/ic_window_icon.png</iconset>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <layout class="QHBoxLayout" name="horizontalLayout">
+      <item>
+       <widget class="QPushButton" name="btn_picker">
+        <property name="minimumSize">
+         <size>
+          <width>147</width>
+          <height>32</height>
+         </size>
+        </property>
+        <property name="cursor">
+         <cursorShape>ArrowCursor</cursorShape>
+        </property>
+        <property name="focusPolicy">
+         <enum>Qt::TabFocus</enum>
+        </property>
+        <property name="text">
+         <string>Choose Video</string>
+        </property>
+        <property name="icon">
+         <iconset>
+          <normaloff>assets/ic_video.png</normaloff>assets/ic_video.png</iconset>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btn_search">
+        <property name="minimumSize">
+         <size>
+          <width>104</width>
+          <height>32</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Estimate Venue</string>
+        </property>
+        <property name="icon">
+         <iconset>
+          <normaloff>../../ImageSearch/assets/ic_search.png</normaloff>../../ImageSearch/assets/ic_search.png</iconset>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="horizontalLayout_3">
+      <item>
+       <widget class="QCheckBox" name="checkBoxColorHist">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <property name="text">
+         <string>Color Histogram</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QDoubleSpinBox" name="doubleSpinBoxColorHist">
+        <property name="decimals">
+         <number>1</number>
+        </property>
+        <property name="singleStep">
+         <double>0.500000000000000</double>
+        </property>
+        <property name="value">
+         <double>3.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="checkBoxVisualConcept">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <property name="text">
+         <string>Visual Concept</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+        <property name="tristate">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QDoubleSpinBox" name="doubleSpinBoxVisualConcept">
+        <property name="decimals">
+         <number>1</number>
+        </property>
+        <property name="singleStep">
+         <double>0.500000000000000</double>
+        </property>
+        <property name="value">
+         <double>2.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="checkBoxVisualKeyword">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <property name="focusPolicy">
+         <enum>Qt::TabFocus</enum>
+        </property>
+        <property name="text">
+         <string>Visual Keyword</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QDoubleSpinBox" name="doubleSpinBoxVisualKeyword">
+        <property name="decimals">
+         <number>1</number>
+        </property>
+        <property name="singleStep">
+         <double>0.500000000000000</double>
+        </property>
+        <property name="value">
+         <double>1.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="checkBoxDeepLearning">
+        <property name="enabled">
+         <bool>true</bool>
+        </property>
+        <property name="text">
+         <string>Deep Learning</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QDoubleSpinBox" name="doubleSpinBoxDeepLearning">
+        <property name="decimals">
+         <number>1</number>
+        </property>
+        <property name="singleStep">
+         <double>0.500000000000000</double>
+        </property>
+        <property name="value">
+         <double>3.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="tags_search"/>
+      </item>
+      <item>
+       <widget class="QDoubleSpinBox" name="doubleSpinBoxText">
+        <property name="decimals">
+         <number>1</number>
+        </property>
+        <property name="singleStep">
+         <double>0.500000000000000</double>
+        </property>
+        <property name="value">
+         <double>1.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <widget class="QListWidget" name="listWidgetResults">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
+      <property name="cursor" stdset="0">
+       <cursorShape>ArrowCursor</cursorShape>
+      </property>
+      <property name="focusPolicy">
+       <enum>Qt::NoFocus</enum>
+      </property>
+      <property name="dragDropMode">
+       <enum>QAbstractItemView::DragDrop</enum>
+      </property>
+      <property name="alternatingRowColors">
+       <bool>false</bool>
+      </property>
+      <property name="selectionMode">
+       <enum>QAbstractItemView::NoSelection</enum>
+      </property>
+      <property name="iconSize">
+       <size>
+        <width>140</width>
+        <height>140</height>
+       </size>
+      </property>
+      <property name="resizeMode">
+       <enum>QListView::Adjust</enum>
+      </property>
+      <property name="spacing">
+       <number>150</number>
+      </property>
+      <property name="viewMode">
+       <enum>QListView::IconMode</enum>
+      </property>
+      <property name="uniformItemSizes">
+       <bool>true</bool>
+      </property>
+      <property name="currentRow">
+       <number>-1</number>
+      </property>
+     </widget>
+    </item>
+    <item>
+     <layout class="QHBoxLayout" name="horizontalLayout_5">
+      <item>
+       <widget class="QPushButton" name="btn_reset">
+        <property name="minimumSize">
+         <size>
+          <width>66</width>
+          <height>32</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Clear</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btn_quit">
+        <property name="minimumSize">
+         <size>
+          <width>66</width>
+          <height>32</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>Quit</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>841</width>
+     <height>22</height>
+    </rect>
+   </property>
+  </widget>
+ </widget>
+ <tabstops>
+  <tabstop>checkBoxVisualConcept</tabstop>
+  <tabstop>checkBoxVisualKeyword</tabstop>
+  <tabstop>checkBoxDeepLearning</tabstop>
+  <tabstop>btn_reset</tabstop>
+  <tabstop>btn_quit</tabstop>
+ </tabstops>
+ <resources/>
+ <connections/>
+</ui>
