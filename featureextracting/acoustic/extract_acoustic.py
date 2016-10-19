@@ -54,7 +54,7 @@ if __name__ == '__main__':
         audio_reading_path=audio_reading_path)
 
     # 3. Select the type of feature of interest, and set the storing path.
-    acoustic_storing_path = "../../feature/acoustic/1.csv"
+    acoustic_storing_path = "feature/acoustic/feature_energy.csv"
 
     # 4. Store the extracted acoustic feature(s) to .csv form.
     np.savetxt(acoustic_storing_path, feature_energy, delimiter=",")

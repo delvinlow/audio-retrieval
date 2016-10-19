@@ -1,1 +1,5 @@
 *.pyc 
+*.mp4
+dataset_vine/*
+feature/acoustic/*
+*.pdf

@@ -10,9 +10,16 @@ __author__ = "xiangwang1223@gmail.com"
 import cv2
 import numpy as np
 
+def extractframe(inp):
+    vidcap = cv2.VideoCapture(inp)
+    tmp =inp.replace('/video/','/frame/')
+    tmp = tmp.replace('.mp4','-')
+    ex_fra.extract_frame(vidcap,tmp)
+    vidcap.release()
 
 # The implementation of fetching the key frames.
 def getKeyFrames(vidcap, store_frame_path):
+    """Pass in a VideoCapture object of that video, and where to store the frames (append with videoid-)"""
     count = 0
     lastHist = None
     sumDiff = []
