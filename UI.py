@@ -15,9 +15,15 @@ from PyQt4.QtGui import *
 import sys
 import os
 import design
-import index.build_index
-# import glob
-# from multiprocessing.pool import ThreadPool
+import index.index as acoustic_searcher
+import moviepy.editor as mp
+from preprocessing.extract_frame import getKeyFrames
+
+# import preprocessing.extract_audio
+import glob
+from featureextracting.acoustic import extract_acoustic
+import heapq
+from multiprocessing.pool import ThreadPool
 # from deeplearning.classify_image import run_inference_on_image
 # from deeplearning.classify_image import run_inference_on_query_image
 # from deeplearning.classify_image import create_session
@@ -26,10 +32,16 @@ import index.build_index
 # from imageconcept.search_concept import search_concept
 # from time import sleep
 
+from preprocessing.extract_frame import getKeyFrames
+
 
 class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 	def __init__(self, search_path, frame_storing_path):
+		self.pool = ThreadPool(processes=4)
+		self.pool_extract = ThreadPool(processes=4)
+
 		self.init_audio_index()
+		self.build_venues_index()
 		self.search_path = search_path
 		self.frame_storing_path = frame_storing_path
 		# self.limit = 100
@@ -48,9 +60,36 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		# self.pool = ThreadPool(processes=4)
 		# self.cd = ColorDescriptor((8, 12, 3))
 
-	def init_audio_index(dir_audio_features):
-		self.features_energy = index.build_index("../feature/acoustic/feature_energy/" )
-		print self.feature_energy
+	def build_venues_index(self):
+		file_venueid_venuename = open("dataset_vine/venue-name.txt", "r") # eg: 1	City
+		file_videoid_venueid = open("dataset_vine/vine-venue-training.txt", "r") # eg: 1000110881755082752	1
+		# Build a dictionary for id: name
+		self.dict_venueid_name = {} 
+		for line in file_venueid_venuename:
+			venue_id, venue_name = line.split("\t", 1)
+			self.dict_venueid_name[venue_id] = venue_name.strip()
+
+		# Change from given 1000110881755082752	1 to 1000110881755082752 City
+		self.dict_videoid_name = {}
+		for line in file_videoid_venueid:
+			video_id, venue_index = line.split("\t", 1)
+			self.dict_videoid_name[video_id] = self.dict_venueid_name[venue_index.strip()]
+			self.dict_videoid_name[video_id] = self.dict_venueid_name[venue_index.strip()]
+		file_venueid_venuename.close()
+		file_videoid_venueid.close()
+
+	def init_audio_index(self):
+		self.async_result_energy = self.pool.apply_async(acoustic_searcher.build_index, ("feature/acoustic/feature_energy/",))
+		self.async_result_mfcc = self.pool.apply_async(acoustic_searcher.build_index, ("feature/acoustic/feature_mfcc/",))
+		self.async_result_zero_crossing = self.pool.apply_async(acoustic_searcher.build_index, ("feature/acoustic/feature_zero_crossing/",))
+		self.async_result_spect = self.pool.apply_async(acoustic_searcher.build_index, ("feature/acoustic/feature_spect/",))
+
+		# self.labels, self.features_energy = acoustic_searcher.build_index( )
+		# self.labels, self.features_mfcc = acoustic_searcher.build_index("feature/acoustic/feature_mfcc/" )
+		# self.labels, self.features_zero_crossing = acoustic_searcher.build_index("feature/acoustic/feature_zero_crossing/" )
+		# self.labels, self.features_spect = acoustic_searcher.build_index("feature/acoustic/feature_spect/" )
+		# print self.features_energy
+
 
 	def home(self):
 		"""Specific to page. Connect the buttons to functions"""
@@ -155,12 +194,96 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 			img_widget_icon = QListWidgetItem(QIcon("transparent.png"), "")
 			self.listWidgetResults.addItem(img_widget_icon)
 
+	def get_top_scorers(self, scores, limit=16):
+		heap = []
+		for video_id in scores:
+			if scores[video_id] != sys.float_info.max:
+				heapq.heappush(heap, (scores[video_id], video_id))
+
+		largest = heapq.nsmallest(limit, heap) # Filter to Top K results based on score
+		return largest
+
+
 	def show_venue_category(self):
-		print "do whatever here"
+		self.labels, self.features_energy = self.async_result_energy.get()
+		self.labels, self.features_zero_crossing = self.async_result_zero_crossing.get()
+		self.labels, self.features_spect = self.async_result_spect.get()
+		self.labels, self.features_mfcc = self.async_result_mfcc.get()
 
 		if self.columns == 0:
 			print("Please extract the key frames for the selected video first!!!")
 		else:
+			scores_energy = {}
+			for i in range(0, len(self.features_energy)):
+			
+				score_energy = acoustic_searcher.array_sum(self.features_energy[i], self.query_feature_energy)
+				video_id = self.labels[i]
+				scores_energy[video_id] = score_energy
+
+			scores_zero_crossing = {}
+			for i in range(0, len(self.features_zero_crossing)):
+				score_zero_crossing = acoustic_searcher.array_sum(self.features_zero_crossing[i], self.query_feature_zerocrossing)
+				video_id = self.labels[i]
+				scores_zero_crossing[video_id] = score_zero_crossing		
+	
+			scores_spect = {}
+			for i in range(0, len(self.features_spect)):
+				score_spect = acoustic_searcher.matrix_sum(self.features_spect[i], self.query_feature_spect)
+				video_id = self.labels[i]
+				scores_spect[video_id] = score_spect
+
+			scores_mfcc = {}
+			for i in range(0, len(self.features_mfcc)):
+				score_mfcc = acoustic_searcher.matrix_sum(self.features_mfcc[i], self.query_feature_mfcc)
+				video_id = self.labels[i]
+				scores_mfcc[video_id] = score_mfcc
+
+        	
+        	WEIGHT_ENERGY = 1
+        	WEIGHT_SPECT = 1
+        	WEIGHT_MFCC = 1
+        	WEIGHT_ZERO_CROSSING = 1
+
+        	final_scores_cat = {}
+        	remaining_points = 16
+        	
+        	for (score, video_id) in self.get_top_scorers(scores_energy):
+        		venue_name = self.dict_videoid_name[video_id]
+        		current_score = final_scores_cat.setdefault(venue_name, 0)
+        		final_scores_cat[venue_name] = current_score + remaining_points * WEIGHT_ENERGY
+        		remaining_points -= 1
+
+        	print final_scores_cat
+
+        	remaining_points = 16
+        	for (score, video_id) in self.get_top_scorers(scores_zero_crossing):
+        		venue_name = self.dict_videoid_name[video_id]
+        		current_score = final_scores_cat.setdefault(venue_name, 0)
+        		final_scores_cat[venue_name] = current_score + remaining_points * WEIGHT_ZERO_CROSSING
+
+        		remaining_points -= 1
+        	
+        	print final_scores_cat
+
+        	remaining_points = 16
+        	for (score, video_id) in self.get_top_scorers(scores_spect):
+        		venue_name = self.dict_videoid_name[video_id]
+        		current_score = final_scores_cat.setdefault(venue_name, 0)
+        		final_scores_cat[venue_name] = current_score + remaining_points * WEIGHT_SPECT
+
+        		remaining_points -= 1
+
+        	print final_scores_cat
+
+        	remaining_points = 16
+        	for (score, video_id) in self.get_top_scorers(scores_mfcc):
+        		venue_name = self.dict_videoid_name[video_id]
+        		current_score = final_scores_cat.setdefault(venue_name, 0)
+        		final_scores_cat[venue_name] = current_score + remaining_points * WEIGHT_MFCC
+
+        		remaining_points -= 1
+
+        	print final_scores_cat
 			# Please note that, you need to write your own classifier to estimate the venue category to show blow.
 			# if self.videoname == '1':
 			#    venue_text = "Home"
@@ -168,7 +291,11 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 			#     venue_text = 'Bridge'
 			# elif self.videoname == '4':
 			#     venue_text = 'Park'
-			venue_text = "TODO"
+		if len(final_scores_cat) != 0:
+			venue_text = max(final_scores_cat, key=lambda k: final_scores_cat[k])
+		else:
+			venue_text = "?"
+
 
 		pixmap = QPixmap("venue_background.jpg")
 		# pixmap.fill(Qt.white)
@@ -182,69 +309,71 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		venue_img_icon = QListWidgetItem(QIcon(pixmap), "")
 		self.listWidgetResults.addItem(venue_img_icon)
 
-		# venue_img = Image.open("venue_background.jpg")
-		# draw = ImageDraw.Draw(venue_img)
-
-		# font = ImageFont.truetype("/Library/Fonts/Arial.ttf",size=66)
 
 		self.pad_rows_with_dummy_images()
 		pass
+
+	def extract_frame_async(self):
+		# Extract frames
+		frame_storing_path = "dataset_vine/vine/validation/frame/"  + self.videoname + "-"
+		vid_cap = cv2.VideoCapture(self.filename) # Open the video file	
+		self.frames = getKeyFrames(vid_cap, frame_storing_path)
+		vid_cap.release()
+
+		return glob.glob("dataset_vine/vine/validation/frame/"  + self.videoname + "-" + "*")
 		
 
 	def choose_video(self):
 		self.tags_search.setText("")
 		self.filename = QtGui.QFileDialog.getOpenFileName(self, "Open Video", os.path.dirname(__file__),"Videos (*.mp4)")
 
-		allframes = os.listdir(self.frame_storing_path)
+		allframes = os.listdir("dataset_vine/vine/validation/frame/")
 		self.filename = str(self.filename)
 		self.videoname = self.filename.strip().split("/")[-1].replace(".mp4","")
 		self.frames = []
 
+		self.async_result_extract_frame = self.pool_extract.apply_async(self.extract_frame_async, ())
+
 		print "videoname", self.videoname
+		error_file = open("errors_query.txt", "a")
 
-		for frame in allframes:
-			if self.videoname +"-frame" in frame:
-				print frame
-				self.frames.append(self.frame_storing_path + frame) # ..../frame
+		#1. Extract Audio Clips
+		audio_storing_path = "dataset_vine/vine/validation/audio/" + self.videoname + ".wav"
+		print audio_storing_path
+		print self.filename
+		try:
+			# Extract Audio
+			clip = mp.VideoFileClip(self.filename)
+			clip.audio.write_audiofile(audio_storing_path)
+		except:
+			error_file.write(self.filename + "\n")
+		
+		
 
+		self.query_feature_mfcc, self.query_feature_spect, self.query_feature_zerocrossing, self.query_feature_energy = extract_acoustic.getAcousticFeatures(audio_storing_path)
+
+		self.frames = self.async_result_extract_frame.get()
 		self.columns = len(self.frames)
 		image_count = 0
-
 		MAX_COLUMNS = 8
 		row = self.listWidgetResults.currentRow()
-
 		row += self.columns/MAX_COLUMNS + 1
-
 		if self.columns == 0:
 			self.frames.append("none.png")
 			print("Please extract the key frames for the selected video first!!!")
 			self.columns = 1
 
+		print self.frames
 		for frame in self.frames:
 
 			r, c = divmod(image_count, self.columns)
 			try:
-				# im = Image.open(frame)
-				# resized = im.resize((100, 100), Image.ANTIALIAS)
-
-				# fullpath = glob.glob(os.path.join(os.path.curdir, "ImageData", "train", "data", "*", img_id) )[0]
 				img_widget_icon = QListWidgetItem(QIcon(frame), "")
 				self.listWidgetResults.addItem(img_widget_icon)
 
-        #         tkimage = ImageTk.PhotoImage(resized)
-
-        #         myvar = Label(self.query_img_frame, image=tkimage)
-        #         myvar.image = tkimage
-        #         myvar.grid(row=r, column=c)
-
 				image_count += 1
-        #         self.lastR = r
-        #         self.lastC = c
 			except Exception, e:
 				continue
-
-        # self.query_img_frame.mainloop()
-
 
 
 		# # Deep Learning
