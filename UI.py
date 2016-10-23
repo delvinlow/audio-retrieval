@@ -1,8 +1,8 @@
 #! /usr/bin/env
 # -*- coding: latin2 -*- 
 import cv2
-# from colorhist.colordescriptor import ColorDescriptor
-# from colorhist.searcher import Searcher
+from colorhist.colordescriptor import ColorDescriptor
+from colorhist.searcher import Searcher
 # from textsearch.index_text import build_normal_index
 # from textsearch.index_text import index_tags_normal
 # from textsearch.search_text import search_text_index
@@ -52,8 +52,46 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		self.home()
 		# self.sab = SIFTandBOW(True)
 		# self.build_index()
-		# self.statesConfiguration = {"colorHist": True, "visualConcept": True, "visualKeyword": True, "deepLearning": True}
-		# self.weights = {"colorHistWeight": 3.0, "vkWeight": 1.0, "vcWeight": 2.0, "textWeight": 1.0, "dpLearnWeight": 3.0} #total = 5.0
+		self.statesConfiguration = {"colorHist": True, "visualConcept": True, "text": True, "energy": True, "zeroCrossing": True, "spect": True, "mfcc" : True}
+		# self.weights = {"colorHistWeight": 3.0, "vkWeight": 1.0, "textWeight": 1.0 } #total = 5.0
+		# self.weights_acoustic = {"energyWeight": 1.0, "zeroCrossingWeight": 1.0, "spectWeight": 1.0, "mfccWeight": 1.0} #total = 4.0
+		self.weights = {"colorHistWeight": self.doubleSpinBoxColorHist.value(), 
+		 "vkWeight": self.doubleSpinBoxVisualKeyword.value(),
+		 "textWeight": self.doubleSpinBoxText.value()} 
+		print self.weights
+
+		self.weights_acoustic = {"energyWeight": self.doubleSpinBoxEnergy.value(), 
+		 "zeroCrossingWeight": self.doubleSpinBoxZeroCrossing.value(),
+		 "spectWeight": self.doubleSpinBoxSpect.value(), "mfccWeight": self.doubleSpinBoxMFCC.value()} #total = 10
+		print self.weights_acoustic
+		
+
+	def home(self):
+		"""Specific to page. Connect the buttons to functions"""
+		self.btn_picker.clicked.connect(self.choose_video)
+		self.btn_search.clicked.connect(self.show_venue_category)
+		self.btn_quit.clicked.connect(self.close_application)
+		self.btn_reset.clicked.connect(self.clear_results)
+
+		self.checkBoxColorHist.stateChanged.connect(self.state_changed)
+		self.checkBoxVisualKeyword.stateChanged.connect(self.state_changed)
+
+		self.checkBox_energy.stateChanged.connect(self.state_changed)
+		self.checkBox_zerocrossing.stateChanged.connect(self.state_changed)
+		self.checkBox_spect.stateChanged.connect(self.state_changed)
+		self.checkBox_mfcc.stateChanged.connect(self.state_changed)
+
+		self.doubleSpinBoxColorHist.valueChanged.connect(self.value_changed)
+		self.doubleSpinBoxVisualKeyword.valueChanged.connect(self.value_changed)
+
+		self.doubleSpinBoxEnergy.valueChanged.connect(self.value_changed)
+		self.doubleSpinBoxZeroCrossing.valueChanged.connect(self.value_changed)
+		self.doubleSpinBoxSpect.valueChanged.connect(self.value_changed)
+		self.doubleSpinBoxMFCC.valueChanged.connect(self.value_changed)
+
+		self.show()
+
+
 		# self.deep_learner_searcher = DeepLearningSearcher("deeplearning/output_probabilities.txt")
 		# # self.deepLearningGraph = create_graph()
 		# self.deepLearningSession, self.softmax_tensor = create_session()
@@ -61,6 +99,7 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		# self.cd = ColorDescriptor((8, 12, 3))
 
 	def build_venues_index(self):
+		"""Builds two dictionaries for venue_id, video_id and category name mapping"""
 		file_venueid_venuename = open("dataset_vine/venue-name.txt", "r") # eg: 1	City
 		file_videoid_venueid = open("dataset_vine/vine-venue-training.txt", "r") # eg: 1000110881755082752	1
 		# Build a dictionary for id: name
@@ -79,87 +118,82 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		file_videoid_venueid.close()
 
 	def init_audio_index(self):
+		"""Read in the 3000 acoustic features files in the 4 folders into memory during __init__ """
 		self.async_result_energy = self.pool.apply_async(acoustic_searcher.build_index, ("feature/acoustic/feature_energy/",))
 		self.async_result_mfcc = self.pool.apply_async(acoustic_searcher.build_index, ("feature/acoustic/feature_mfcc/",))
 		self.async_result_zero_crossing = self.pool.apply_async(acoustic_searcher.build_index, ("feature/acoustic/feature_zero_crossing/",))
 		self.async_result_spect = self.pool.apply_async(acoustic_searcher.build_index, ("feature/acoustic/feature_spect/",))
 
-		# self.labels, self.features_energy = acoustic_searcher.build_index( )
-		# self.labels, self.features_mfcc = acoustic_searcher.build_index("feature/acoustic/feature_mfcc/" )
-		# self.labels, self.features_zero_crossing = acoustic_searcher.build_index("feature/acoustic/feature_zero_crossing/" )
-		# self.labels, self.features_spect = acoustic_searcher.build_index("feature/acoustic/feature_spect/" )
-		# print self.features_energy
 
+	def value_changed(self):
+		"""Modify weights if values changed in any of the spinBoxes"""
+		self.weights = {"colorHistWeight": self.doubleSpinBoxColorHist.value(), 
+		 "vkWeight": self.doubleSpinBoxVisualKeyword.value(),
+		 "textWeight": self.doubleSpinBoxText.value()} #total = 10
+		print self.weights
 
-	def home(self):
-		"""Specific to page. Connect the buttons to functions"""
-		self.btn_picker.clicked.connect(self.choose_video)
-		self.btn_search.clicked.connect(self.show_venue_category)
-		self.btn_quit.clicked.connect(self.close_application)
-		self.btn_reset.clicked.connect(self.clear_results)
+		self.weights_acoustic = {"energyWeight": self.doubleSpinBoxEnergy.value(), 
+		 "zeroCrossingWeight": self.doubleSpinBoxZeroCrossing.value(),
+		 "spectWeight": self.doubleSpinBoxSpect.value(), "mfccWeight": self.doubleSpinBoxMFCC.value()} #total = 10
+		print self.weights_acoustic
 
-		# self.checkBoxColorHist.stateChanged.connect(self.state_changed)
-		# self.checkBoxVisualConcept.stateChanged.connect(self.state_changed)
-		# self.checkBoxVisualKeyword.stateChanged.connect(self.state_changed)
-		# self.checkBoxDeepLearning.stateChanged.connect(self.state_changed)
+	def state_changed(self):
+		"""Update configuration when checkboxes are clicked"""
+		if self.checkBoxColorHist.isChecked():
+			self.statesConfiguration["colorHist"] = True
+			self.doubleSpinBoxColorHist.setEnabled(True)
+		else:
+			self.statesConfiguration["colorHist"] = False
+			self.doubleSpinBoxColorHist.setEnabled(False)
 
-		# self.doubleSpinBoxColorHist.valueChanged.connect(self.value_changed)
-		# self.doubleSpinBoxVisualConcept.valueChanged.connect(self.value_changed)
-		# self.doubleSpinBoxVisualKeyword.valueChanged.connect(self.value_changed)
-		# self.doubleSpinBoxDeepLearning.valueChanged.connect(self.value_changed)
+		if self.checkBoxVisualKeyword.isChecked():
+			self.statesConfiguration["visualKeyword"] = True
+			self.doubleSpinBoxVisualKeyword.setEnabled(True)
+		else:
+			self.statesConfiguration["visualKeyword"] = False
+			self.doubleSpinBoxVisualKeyword.setEnabled(False)
 
-		self.show()
+		# Acoustic
+		if self.checkBox_energy.isChecked():
+			self.statesConfiguration["energy"] = True
+			self.doubleSpinBoxEnergy.setEnabled(True)
+		else:
+			self.statesConfiguration["energy"] = False
+			self.doubleSpinBoxEnergy.setEnabled(False)
 
-	# def value_changed(self):
-	# 	self.weights = {"colorHistWeight": self.doubleSpinBoxColorHist.value(), 
-	# 	 "vkWeight": self.doubleSpinBoxVisualKeyword.value(),
-	# 	 "vcWeight": self.doubleSpinBoxVisualConcept.value(), 
-	# 	 "textWeight": self.doubleSpinBoxText.value(), 
-	# 	 "dpLearnWeight": self.doubleSpinBoxDeepLearning.value()} #total = 10
-	# 	print self.weights
+		if self.checkBox_zerocrossing.isChecked():
+			self.statesConfiguration["zeroCrossing"] = True
+			self.doubleSpinBoxZeroCrossing.setEnabled(True)
+		else:
+			self.statesConfiguration["zeroCrossing"] = False
+			self.doubleSpinBoxZeroCrossing.setEnabled(False)
 
-	# def state_changed(self):
-	# 	if self.checkBoxColorHist.isChecked():
-	# 		self.statesConfiguration["colorHist"] = True
-	# 		self.doubleSpinBoxColorHist.setEnabled(True)
-	# 	else:
-	# 		self.statesConfiguration["colorHist"] = False
-	# 		self.doubleSpinBoxColorHist.setEnabled(False)
+		if self.checkBox_spect.isChecked():
+			self.statesConfiguration["spect"] = True
+			self.doubleSpinBoxSpect.setEnabled(True)
+		else:
+			self.statesConfiguration["spect"] = False
+			self.doubleSpinBoxSpect.setEnabled(False)
 
-	# 	if self.checkBoxVisualConcept.isChecked():
-	# 		self.statesConfiguration["visualConcept"] = True
-	# 		self.doubleSpinBoxVisualConcept.setEnabled(True)
-	# 	else:
-	# 		self.statesConfiguration["visualConcept"] = False
-	# 		self.doubleSpinBoxVisualConcept.setEnabled(False)
-	# 	if self.checkBoxVisualKeyword.isChecked():
-	# 		self.statesConfiguration["visualKeyword"] = True
-	# 		self.doubleSpinBoxVisualKeyword.setEnabled(True)
-	# 	else:
-	# 		self.statesConfiguration["visualKeyword"] = False
-	# 		self.doubleSpinBoxVisualKeyword.setEnabled(False)
+		if self.checkBox_mfcc.isChecked():
+			self.statesConfiguration["mfcc"] = True
+			self.doubleSpinBoxMFCC.setEnabled(True)
+		else:
+			self.statesConfiguration["mfcc"] = False
+			self.doubleSpinBoxMFCC.setEnabled(False)
 
-	# 	if self.checkBoxDeepLearning.isChecked():
-	# 		self.statesConfiguration["deepLearning"] = True
-	# 		self.doubleSpinBoxDeepLearning.setEnabled(True)
-	# 	else:
-	# 		self.statesConfiguration["deepLearning"] = False
-	# 		self.doubleSpinBoxDeepLearning.setEnabled(False)
-
-	# 	print self.statesConfiguration
+		print self.statesConfiguration
 
 	def closeEvent(self, event):
+		"""Handle closing of app"""
 		event.ignore()
 		self.close_application()
 
 	def close_application(self):
 		choice = QtGui.QMessageBox.question(self, "Quit?", 
 			"Are you sure to quit?", QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
-
 		if choice == QtGui.QMessageBox.Yes:
 			sys.exit()
-		else:
-			pass
 
 	# def search_color_hist_in_background(self):
 	# 	query = cv2.imread(self.filename)
@@ -238,11 +272,10 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 				video_id = self.labels[i]
 				scores_mfcc[video_id] = score_mfcc
 
-        	
-        	WEIGHT_ENERGY = 1
-        	WEIGHT_SPECT = 1
-        	WEIGHT_MFCC = 1
-        	WEIGHT_ZERO_CROSSING = 1
+        	WEIGHT_ENERGY = self.weights_acoustic["energyWeight"]
+        	WEIGHT_ZERO_CROSSING= self.weights_acoustic["zeroCrossingWeight"]
+        	WEIGHT_SPECT = self.weights_acoustic["spectWeight"]
+        	WEIGHT_MFCC = self.weights_acoustic["mfccWeight"]
 
         	final_scores_cat = {}
         	remaining_points = 16
