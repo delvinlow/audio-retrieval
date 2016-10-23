@@ -1,13 +1,5 @@
 #! /usr/bin/env
 # -*- coding: latin2 -*- 
-import cv2
-from colorhist.colordescriptor import ColorDescriptor
-from colorhist.searcher import Searcher
-# from textsearch.index_text import build_normal_index
-# from textsearch.index_text import index_tags_normal
-# from textsearch.search_text import search_text_index
-# from SIFT.search_sift import SIFTandBOW
-# from fuse_scores import fuse_scores
 
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtGui import *
@@ -15,15 +7,22 @@ from PyQt4.QtGui import *
 import sys
 import os
 import design
+import cv2
+import glob
+import heapq
 import index.index as acoustic_searcher
 import moviepy.editor as mp
 from preprocessing.extract_frame import getKeyFrames
-
-# import preprocessing.extract_audio
-import glob
 from featureextracting.acoustic import extract_acoustic
-import heapq
 from multiprocessing.pool import ThreadPool
+from colorhist.colordescriptor import ColorDescriptor
+from colorhist.searcher import Searcher
+
+# from textsearch.index_text import build_normal_index
+from textsearch.index_text import index_tags_normal
+from textsearch.search_text import search_text_index
+# from SIFT.search_sift import SIFTandBOW
+# from fuse_scores import fuse_scores
 # from deeplearning.classify_image import run_inference_on_image
 # from deeplearning.classify_image import run_inference_on_query_image
 # from deeplearning.classify_image import create_session
@@ -44,7 +43,7 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		self.build_venues_index()
 		self.search_path = search_path
 		self.frame_storing_path = frame_storing_path
-		# self.limit = 100
+		self.limit = 100
 		# self.searcher = Searcher("colorhist/index_color_hist.txt")
 		super(Window, self).__init__()
 		self.setupUi(self)
@@ -52,9 +51,9 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		self.home()
 		# self.sab = SIFTandBOW(True)
 		# self.build_index()
+		self.build_tags_index()
+		print self.tags_index
 		self.statesConfiguration = {"colorHist": True, "visualConcept": True, "text": True, "energy": True, "zeroCrossing": True, "spect": True, "mfcc" : True}
-		# self.weights = {"colorHistWeight": 3.0, "vkWeight": 1.0, "textWeight": 1.0 } #total = 5.0
-		# self.weights_acoustic = {"energyWeight": 1.0, "zeroCrossingWeight": 1.0, "spectWeight": 1.0, "mfccWeight": 1.0} #total = 4.0
 		self.weights = {"colorHistWeight": self.doubleSpinBoxColorHist.value(), 
 		 "vkWeight": self.doubleSpinBoxVisualKeyword.value(),
 		 "textWeight": self.doubleSpinBoxText.value()} 
@@ -91,11 +90,6 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 
 		self.show()
 
-
-		# self.deep_learner_searcher = DeepLearningSearcher("deeplearning/output_probabilities.txt")
-		# # self.deepLearningGraph = create_graph()
-		# self.deepLearningSession, self.softmax_tensor = create_session()
-		# self.pool = ThreadPool(processes=4)
 		# self.cd = ColorDescriptor((8, 12, 3))
 
 	def build_venues_index(self):
@@ -229,6 +223,7 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 			self.listWidgetResults.addItem(img_widget_icon)
 
 	def get_top_scorers(self, scores, limit=16):
+		"""Get top 16 results from the list scores"""
 		heap = []
 		for video_id in scores:
 			if scores[video_id] != sys.float_info.max:
@@ -237,8 +232,35 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		largest = heapq.nsmallest(limit, heap) # Filter to Top K results based on score
 		return largest
 
+	def add_to_final_scores(self, scores_feature, final_scores_cat, weight):
+		"""Add the weighted feature score of top 16 video to the final scores"""
+		remaining_points = 16
+		for (score, video_id) in self.get_top_scorers(scores_feature):
+			venue_name = self.dict_videoid_name[video_id]
+			current_score = final_scores_cat.setdefault(venue_name, 0)
+			final_scores_cat[venue_name] = current_score + remaining_points * weight
+			remaining_points -= 1
+		return final_scores_cat
+
+	def add_text_to_final_scores(self, scores_feature, final_scores_cat, weight):
+		"""Add the weighted feature score of top 16 video to the final scores"""
+		remaining_points = self.limit
+		for (score, video_id) in scores_feature:
+			venue_name = self.dict_videoid_name[video_id]
+			current_score = final_scores_cat.setdefault(venue_name, 0)
+			final_scores_cat[venue_name] = -current_score + remaining_points * weight
+			remaining_points -= 1
+		return final_scores_cat
 
 	def show_venue_category(self):
+		# Perform Text Search
+		queryTags = str(self.tags_search.text().toLatin1())
+		self.weights["textWeight"] = self.doubleSpinBoxText.value()
+		scores_text = []
+		if len(queryTags) > 0:
+			scores_text = search_text_index(queryTags, self.limit) # Will return a min heap (smaller is better)
+			print scores_text
+
 		self.labels, self.features_energy = self.async_result_energy.get()
 		self.labels, self.features_zero_crossing = self.async_result_zero_crossing.get()
 		self.labels, self.features_spect = self.async_result_spect.get()
@@ -275,54 +297,35 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
         	WEIGHT_ZERO_CROSSING= self.weights_acoustic["zeroCrossingWeight"]
         	WEIGHT_SPECT = self.weights_acoustic["spectWeight"]
         	WEIGHT_MFCC = self.weights_acoustic["mfccWeight"]
-        	SUM_WEIGHTS = WEIGHT_ENERGY + WEIGHT_ZERO_CROSSING + WEIGHT_SPECT + WEIGHT_MFCC
+
+        	WEIGHT_TEXT = self.weights["textWeight"]
+        	SUM_WEIGHTS = WEIGHT_ENERGY + WEIGHT_ZERO_CROSSING + WEIGHT_SPECT + WEIGHT_MFCC + WEIGHT_TEXT
 
         	final_scores_cat = {}
-        	remaining_points = 16
-        	
-        	for (score, video_id) in self.get_top_scorers(scores_energy):
-        		venue_name = self.dict_videoid_name[video_id]
-        		current_score = final_scores_cat.setdefault(venue_name, 0)
-        		final_scores_cat[venue_name] = current_score + remaining_points * WEIGHT_ENERGY/SUM_WEIGHTS
-        		remaining_points -= 1
+        	final_scores_cat = self.add_to_final_scores(scores_energy, final_scores_cat, WEIGHT_ENERGY/SUM_WEIGHTS)
+        	print "Energy: ", final_scores_cat
+        	print ""
+        	final_scores_cat = {}
+        	final_scores_cat = self.add_to_final_scores(scores_zero_crossing, final_scores_cat, WEIGHT_ZERO_CROSSING/SUM_WEIGHTS)
+        	print "Zero Crossing: ", final_scores_cat
+        	print ""
+        	final_scores_cat = {}
+        	final_scores_cat = self.add_to_final_scores(scores_spect, final_scores_cat, WEIGHT_SPECT/SUM_WEIGHTS)
+        	print "SPECT: ", final_scores_cat
+        	print ""
+        	final_scores_cat = {}
+        	final_scores_cat = self.add_to_final_scores(scores_mfcc, final_scores_cat, WEIGHT_MFCC/SUM_WEIGHTS)
+        	print "MFCC: ", final_scores_cat
+        	print ""
 
-        	print final_scores_cat
-
-        	remaining_points = 16
-        	for (score, video_id) in self.get_top_scorers(scores_zero_crossing):
-        		venue_name = self.dict_videoid_name[video_id]
-        		current_score = final_scores_cat.setdefault(venue_name, 0)
-        		final_scores_cat[venue_name] = current_score + remaining_points * WEIGHT_ZERO_CROSSING/SUM_WEIGHTS
-
-        		remaining_points -= 1
-        	
-        	print final_scores_cat
-
-        	remaining_points = 16
-        	for (score, video_id) in self.get_top_scorers(scores_spect):
-        		venue_name = self.dict_videoid_name[video_id]
-        		current_score = final_scores_cat.setdefault(venue_name, 0)
-        		final_scores_cat[venue_name] = current_score + remaining_points * WEIGHT_SPECT/SUM_WEIGHTS
-
-        		remaining_points -= 1
-
-        	print final_scores_cat
-
-        	remaining_points = 16
-        	for (score, video_id) in self.get_top_scorers(scores_mfcc):
-        		venue_name = self.dict_videoid_name[video_id]
-        		current_score = final_scores_cat.setdefault(venue_name, 0)
-        		final_scores_cat[venue_name] = current_score + remaining_points * WEIGHT_MFCC/SUM_WEIGHTS
-
-        		remaining_points -= 1
-
-			print final_scores_cat
+        	final_scores_cat = {}
+        	final_scores_cat = self.add_text_to_final_scores(scores_text, final_scores_cat, WEIGHT_TEXT/SUM_WEIGHTS)
+        	print "Text: ", final_scores_cat
 
 		if len(final_scores_cat) != 0:
 			venue_text = max(final_scores_cat, key=lambda k: final_scores_cat[k])
 		else:
 			venue_text = "?"
-
 
 		pixmap = QPixmap("venue_background.jpg")
 		# pixmap.fill(Qt.white)
@@ -338,12 +341,11 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		self.pad_rows_with_dummy_images()
 
 	def extract_frame_async(self):
-		# Extract frames
+		"""Extract frames"""
 		frame_storing_path = "dataset_vine/vine/validation/frame/"  + self.videoname + "-"
 		vid_cap = cv2.VideoCapture(self.filename) # Open the video file	
 		self.frames = getKeyFrames(vid_cap, frame_storing_path)
 		vid_cap.release()
-
 		return glob.glob("dataset_vine/vine/validation/frame/"  + self.videoname + "-" + "*")
 		
 
@@ -399,6 +401,10 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 			except Exception, e:
 				continue
 
+		# If tags exist, load them into the searchbar
+		if self.videoname in self.tags_index:
+			tags = " ".join(self.tags_index[self.videoname])
+			self.tags_search.setText(tags)
 
 		# # Deep Learning
 		# self.async_result_deep_learn = self.pool.apply_async(self.search_deep_learn_in_background, ())
@@ -446,12 +452,6 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 	# def search_image(self):
 	# 	final_results = []
 	
-	# 	# Perform Text Search
-	# 	queryTags = str(self.tags_search.text().toLatin1())
-	# 	self.weights["textWeight"] = self.doubleSpinBoxText.value()
-	# 	results_text = []
-	# 	if len(queryTags) > 0:
-	# 		results_text = search_text_index(queryTags, self.limit) # Will return a min heap (smaller is better)
 
 	# 	# Perform search on SIFT
 	# 	results_sift = []
@@ -509,17 +509,17 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 	def clear_results(self):
 		self.listWidgetResults.clear()
 
-	# def build_index(self):
-	# 	# Read in query tags
-	# 	test_tags = os.path.join(os.path.dirname(__file__), "ImageData", "test", "test_text_tags.txt")
-	# 	try:
-	# 	 	file_train_tags = open(test_tags, "r")
-	#  	except IOError:
-	#  		print "Cannot open test_text_tags.txt"
-	#  	else:
-	#  		self.tags_index = index_tags_normal(file_train_tags)
-	#  		file_train_tags.close()
-	#  		# print self.tags_index
+	def build_tags_index(self):
+		# Read in query tags
+		test_tags = os.path.join(os.path.dirname(__file__), "dataset_vine", "vine-desc-validation.txt")
+		try:
+		 	file_train_tags = open(test_tags, "r")
+	 	except IOError:
+	 		print "Cannot open vine-desc-validation.txt"
+	 	else:
+	 		self.tags_index = index_tags_normal(file_train_tags)
+	 		file_train_tags.close()
+	 		# print self.tags_index
 
 	# def compare(self, final_results):
 	# 	"""For testing F1"""

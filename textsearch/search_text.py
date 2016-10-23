@@ -7,23 +7,16 @@ import sys
 import math
 import cPickle as pickle
 import json
-# import nltk
-# from nltk.stem import PorterStemmer
 import operator
 import heapq
 
-# ALL_DOC_ID_KEYS = "ALL_DOC_IDS"
-# FILE_DOC_LENGTHS = "lengths.txt"
 HEAP_CAPACITY = 320
 THRESHOLD_LOW_IDF = 0.35
 K = 16 # Number of results
-
-# dict_all_doc_ids = []
 N = 0
 INPUT_FILE_TAGS_DICT = "text_dict_tags.txt" # Contains tag1 -> ptr_start, ptr_end, doc_freq, ...
 INPUT_FILE_TAGS_POSTINGS = "text_postings_tags.txt" # Contains actual postings
 OUTPUT_FILE_RANKING = "output_rankings.txt"
-
 
 def search_text_index(input_query, limit):
 	""" Load the dictionary and execute the queries one by one"""
@@ -46,8 +39,6 @@ def search_text_index(input_query, limit):
 	dictionary_file.close()
 	posting_file.close()
 	return results
-	# doc_lengths_file.close()
-	# output_file.close()
 
 
 def execute_query(line, dict_pointers, limit):
@@ -142,7 +133,7 @@ def main():
 		usage()
 		sys.exit(2)
 
-	search_text_index(input_query)
+	print search_text_index(input_query, 100)
 
 if __name__ == '__main__':
 	main()

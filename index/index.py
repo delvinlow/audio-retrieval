@@ -30,8 +30,8 @@ def matrix_sum(m1, m2):
     m1_width, m1_height = m1.shape
     m2_width, m2_height = m2.shape
     distance_sum = 0
-    print m1.shape
-    print m2.shape
+    # print m1.shape
+    # print m2.shape
     if m1.shape == m2.shape:
         for i in range(0, m1_width):
             results = euclidean_dist(m1[i],m2[i])

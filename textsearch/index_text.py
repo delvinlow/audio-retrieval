@@ -7,11 +7,10 @@ import os
 import nltk
 import codecs
 import json
-# from nltk import PorterStemmer
 import collections
 import cPickle as pickle
 
-FILE_TRAIN_INDEX = "train_text_tags.txt" # Contains training tags i.e. img_id -> tag1, tag2, ...
+FILE_TRAIN_INDEX = "vine-desc-training.txt" # Contains training tags i.e. img_id -> tag1, tag2, ...
 FILE_TAGS_DICT = "text_dict_tags.txt" # Contains tag1 -> ptr_start, ptr_end, doc_freq, ...
 FILE_TAGS_POSTINGS = "text_postings_tags.txt" # Contains actual postings
 
@@ -59,6 +58,7 @@ def build_normal_index(train_tags_file):
 
 
 def index_tags_normal(file_train_tags):
+	"""Build id -> tag1, tag2, ..."""
 	dict_tags = {}
 	if file_train_tags:
 		for line in file_train_tags:
@@ -94,5 +94,5 @@ def index_tags_inverted(file_train_tags):
 
 if __name__ == '__main__':
 	# Go to /../ImageData/train/train_text_tags.txt
-	train_tags_path = os.path.join(os.path.dirname(__file__), "..", "ImageData", "train", FILE_TRAIN_INDEX)
+	train_tags_path = os.path.join(os.path.dirname(__file__), "..", "dataset_vine", FILE_TRAIN_INDEX)
 	build_inverted_index(train_tags_path)
