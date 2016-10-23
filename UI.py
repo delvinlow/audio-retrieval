@@ -249,7 +249,6 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		else:
 			scores_energy = {}
 			for i in range(0, len(self.features_energy)):
-			
 				score_energy = acoustic_searcher.array_sum(self.features_energy[i], self.query_feature_energy)
 				video_id = self.labels[i]
 				scores_energy[video_id] = score_energy
@@ -276,6 +275,7 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
         	WEIGHT_ZERO_CROSSING= self.weights_acoustic["zeroCrossingWeight"]
         	WEIGHT_SPECT = self.weights_acoustic["spectWeight"]
         	WEIGHT_MFCC = self.weights_acoustic["mfccWeight"]
+        	SUM_WEIGHTS = WEIGHT_ENERGY + WEIGHT_ZERO_CROSSING + WEIGHT_SPECT + WEIGHT_MFCC
 
         	final_scores_cat = {}
         	remaining_points = 16
@@ -283,7 +283,7 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
         	for (score, video_id) in self.get_top_scorers(scores_energy):
         		venue_name = self.dict_videoid_name[video_id]
         		current_score = final_scores_cat.setdefault(venue_name, 0)
-        		final_scores_cat[venue_name] = current_score + remaining_points * WEIGHT_ENERGY
+        		final_scores_cat[venue_name] = current_score + remaining_points * WEIGHT_ENERGY/SUM_WEIGHTS
         		remaining_points -= 1
 
         	print final_scores_cat
@@ -292,7 +292,7 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
         	for (score, video_id) in self.get_top_scorers(scores_zero_crossing):
         		venue_name = self.dict_videoid_name[video_id]
         		current_score = final_scores_cat.setdefault(venue_name, 0)
-        		final_scores_cat[venue_name] = current_score + remaining_points * WEIGHT_ZERO_CROSSING
+        		final_scores_cat[venue_name] = current_score + remaining_points * WEIGHT_ZERO_CROSSING/SUM_WEIGHTS
 
         		remaining_points -= 1
         	
@@ -302,7 +302,7 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
         	for (score, video_id) in self.get_top_scorers(scores_spect):
         		venue_name = self.dict_videoid_name[video_id]
         		current_score = final_scores_cat.setdefault(venue_name, 0)
-        		final_scores_cat[venue_name] = current_score + remaining_points * WEIGHT_SPECT
+        		final_scores_cat[venue_name] = current_score + remaining_points * WEIGHT_SPECT/SUM_WEIGHTS
 
         		remaining_points -= 1
 
@@ -312,18 +312,12 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
         	for (score, video_id) in self.get_top_scorers(scores_mfcc):
         		venue_name = self.dict_videoid_name[video_id]
         		current_score = final_scores_cat.setdefault(venue_name, 0)
-        		final_scores_cat[venue_name] = current_score + remaining_points * WEIGHT_MFCC
+        		final_scores_cat[venue_name] = current_score + remaining_points * WEIGHT_MFCC/SUM_WEIGHTS
 
         		remaining_points -= 1
 
-        	print final_scores_cat
-			# Please note that, you need to write your own classifier to estimate the venue category to show blow.
-			# if self.videoname == '1':
-			#    venue_text = "Home"
-			# elif self.videoname == '2':
-			#     venue_text = 'Bridge'
-			# elif self.videoname == '4':
-			#     venue_text = 'Park'
+			print final_scores_cat
+
 		if len(final_scores_cat) != 0:
 			venue_text = max(final_scores_cat, key=lambda k: final_scores_cat[k])
 		else:
@@ -341,10 +335,7 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 
 		venue_img_icon = QListWidgetItem(QIcon(pixmap), "")
 		self.listWidgetResults.addItem(venue_img_icon)
-
-
 		self.pad_rows_with_dummy_images()
-		pass
 
 	def extract_frame_async(self):
 		# Extract frames
@@ -357,6 +348,7 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		
 
 	def choose_video(self):
+		"""Set a video from File Dialog"""
 		self.tags_search.setText("")
 		self.filename = QtGui.QFileDialog.getOpenFileName(self, "Open Video", os.path.dirname(__file__),"Videos (*.mp4)")
 
@@ -380,7 +372,6 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 			clip.audio.write_audiofile(audio_storing_path)
 		except:
 			error_file.write(self.filename + "\n")
-		
 		
 
 		self.query_feature_mfcc, self.query_feature_spect, self.query_feature_zerocrossing, self.query_feature_energy = extract_acoustic.getAcousticFeatures(audio_storing_path)
