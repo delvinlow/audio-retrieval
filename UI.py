@@ -15,20 +15,12 @@ import moviepy.editor as mp
 from preprocessing.extract_frame import getKeyFrames
 from featureextracting.acoustic import extract_acoustic
 from multiprocessing.pool import ThreadPool
+
 from colorhist.colordescriptor import ColorDescriptor
 from colorhist.searcher import Searcher
 
-# from textsearch.index_text import build_normal_index
 from textsearch.index_text import index_tags_normal
 from textsearch.search_text import search_text_index
-# from SIFT.search_sift import SIFTandBOW
-# from fuse_scores import fuse_scores
-# from deeplearning.classify_image import run_inference_on_image
-# from deeplearning.classify_image import run_inference_on_query_image
-# from deeplearning.classify_image import create_session
-# from deeplearning.classify_image import create_graph
-# from deeplearning.search_deep_learning import DeepLearningSearcher
-# from imageconcept.search_concept import search_concept
 # from time import sleep
 
 from preprocessing.extract_frame import getKeyFrames
@@ -44,15 +36,15 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		self.search_path = search_path
 		self.frame_storing_path = frame_storing_path
 		self.limit = 100
-		# self.searcher = Searcher("colorhist/index_color_hist.txt")
+		
+		self.colorhist_searcher = Searcher("colorhist/index_color_hist.csv")
+		self.cd = ColorDescriptor((8, 12, 3))
+
 		super(Window, self).__init__()
 		self.setupUi(self)
 		
 		self.home()
-		# self.sab = SIFTandBOW(True)
-		# self.build_index()
 		self.build_tags_index()
-		print self.tags_index
 		self.statesConfiguration = {"colorHist": True, "visualConcept": True, "text": True, "energy": True, "zeroCrossing": True, "spect": True, "mfcc" : True}
 		self.weights = {"colorHistWeight": self.doubleSpinBoxColorHist.value(), 
 		 "vkWeight": self.doubleSpinBoxVisualKeyword.value(),
@@ -90,7 +82,6 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 
 		self.show()
 
-		# self.cd = ColorDescriptor((8, 12, 3))
 
 	def build_venues_index(self):
 		"""Builds two dictionaries for venue_id, video_id and category name mapping"""
@@ -110,6 +101,7 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 			self.dict_videoid_name[video_id] = self.dict_venueid_name[venue_index.strip()]
 		file_venueid_venuename.close()
 		file_videoid_venueid.close()
+
 
 	def init_audio_index(self):
 		"""Read in the 3000 acoustic features files in the 4 folders into memory during __init__ """
@@ -260,6 +252,13 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		if len(queryTags) > 0:
 			scores_text = search_text_index(queryTags, self.limit) # Will return a min heap (smaller is better)
 			print scores_text
+
+		scores_color_hist = []
+		# for frame in self.frames:
+		query = cv2.imread(self.frames[0])
+		queryfeatures = self.cd.describe(query)
+		scores_color_hist = self.colorhist_searcher.search(query, self.limit)
+		print scores_color_hist
 
 		self.labels, self.features_energy = self.async_result_energy.get()
 		self.labels, self.features_zero_crossing = self.async_result_zero_crossing.get()
@@ -447,11 +446,6 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 	# 	if len(results) == 0:
 	# 		return 1
 	# 	return results[len(results)-1][0]
-
-
-	# def search_image(self):
-	# 	final_results = []
-	
 
 	# 	# Perform search on SIFT
 	# 	results_sift = []
