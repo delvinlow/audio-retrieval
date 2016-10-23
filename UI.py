@@ -21,10 +21,10 @@ from colorhist.searcher import Searcher
 
 from textsearch.index_text import index_tags_normal
 from textsearch.search_text import search_text_index
-# from time import sleep
 
 from preprocessing.extract_frame import getKeyFrames
 
+# from time import sleep
 
 class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 	def __init__(self, search_path, frame_storing_path):
@@ -47,7 +47,6 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		self.build_tags_index()
 		self.statesConfiguration = {"colorHist": True, "visualConcept": True, "text": True, "energy": True, "zeroCrossing": True, "spect": True, "mfcc" : True}
 		self.weights = {"colorHistWeight": self.doubleSpinBoxColorHist.value(), 
-		 "vkWeight": self.doubleSpinBoxVisualKeyword.value(),
 		 "textWeight": self.doubleSpinBoxText.value()} 
 		print self.weights
 
@@ -65,7 +64,6 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		self.btn_reset.clicked.connect(self.clear_results)
 
 		self.checkBoxColorHist.stateChanged.connect(self.state_changed)
-		self.checkBoxVisualKeyword.stateChanged.connect(self.state_changed)
 
 		self.checkBox_energy.stateChanged.connect(self.state_changed)
 		self.checkBox_zerocrossing.stateChanged.connect(self.state_changed)
@@ -73,7 +71,6 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		self.checkBox_mfcc.stateChanged.connect(self.state_changed)
 
 		self.doubleSpinBoxColorHist.valueChanged.connect(self.value_changed)
-		self.doubleSpinBoxVisualKeyword.valueChanged.connect(self.value_changed)
 
 		self.doubleSpinBoxEnergy.valueChanged.connect(self.value_changed)
 		self.doubleSpinBoxZeroCrossing.valueChanged.connect(self.value_changed)
@@ -114,7 +111,6 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 	def value_changed(self):
 		"""Modify weights if values changed in any of the spinBoxes"""
 		self.weights = {"colorHistWeight": self.doubleSpinBoxColorHist.value(), 
-		 "vkWeight": self.doubleSpinBoxVisualKeyword.value(),
 		 "textWeight": self.doubleSpinBoxText.value()} #total = 10
 		print self.weights
 
@@ -122,6 +118,7 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		 "zeroCrossingWeight": self.doubleSpinBoxZeroCrossing.value(),
 		 "spectWeight": self.doubleSpinBoxSpect.value(), "mfccWeight": self.doubleSpinBoxMFCC.value()} #total = 10
 		print self.weights_acoustic
+
 
 	def state_changed(self):
 		"""Update configuration when checkboxes are clicked"""
@@ -131,13 +128,6 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		else:
 			self.statesConfiguration["colorHist"] = False
 			self.doubleSpinBoxColorHist.setEnabled(False)
-
-		if self.checkBoxVisualKeyword.isChecked():
-			self.statesConfiguration["visualKeyword"] = True
-			self.doubleSpinBoxVisualKeyword.setEnabled(True)
-		else:
-			self.statesConfiguration["visualKeyword"] = False
-			self.doubleSpinBoxVisualKeyword.setEnabled(False)
 
 		# Acoustic
 		if self.checkBox_energy.isChecked():
@@ -179,31 +169,20 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		choice = QtGui.QMessageBox.question(self, "Quit?", 
 			"Are you sure to quit?", QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
 		if choice == QtGui.QMessageBox.Yes:
+			self.colorhist_searcher.f.close()
 			sys.exit()
 
-	# def search_color_hist_in_background(self):
-	# 	query = cv2.imread(self.filename)
-	# 	# load the query image and describe it
-	# 	self.queryfeatures = self.cd.describe(query)
-	# 	return self.searcher.search(self.queryfeatures, self.limit)
-
-	# def search_visual_concept_in_background(self):
-	# 	path = os.path.join(os.path.curdir, "ImageData", "train", "data")
-	# 	return search_concept(self.filename, path, self.limit)
-
-	# def search_deep_learn_in_background(self):
-	# 	self.queryProbability = run_inference_on_query_image(self.deepLearningSession, self.filename, self.softmax_tensor)
-	# 	return self.deep_learner_searcher.search_deep_learn(self.queryProbability, self.limit)
-
-	# def search_sift_in_background(self):
-	# 	query = cv2.imread(self.filename)
-	# 	self.hist_sift_query = self.sab.histogramBow(query)
-	# 	return self.sab.search(self.hist_sift_query, self.limit)
+	def search_color_hist_in_background(self):
+		middleLen = len(self.frames) / 2
+		query = cv2.imread(self.frames[middleLen])
+		# load the query image and describe it
+		self.queryfeatures = self.cd.describe(query)
+		results = self.colorhist_searcher.search(self.queryfeatures, self.limit)
+		return results
 
 
 	def pad_rows_with_dummy_images(self):
 		count = self.listWidgetResults.count()
-		print "count ", count
 		MAX_COLUMNS = 8
 		if count < MAX_COLUMNS:
 			remainder = MAX_COLUMNS - count 
@@ -227,22 +206,73 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 	def add_to_final_scores(self, scores_feature, final_scores_cat, weight):
 		"""Add the weighted feature score of top 16 video to the final scores"""
 		remaining_points = 16
+		TOTAL_POINTS = 136.0 # 1+2+...+16
 		for (score, video_id) in self.get_top_scorers(scores_feature):
 			venue_name = self.dict_videoid_name[video_id]
 			current_score = final_scores_cat.setdefault(venue_name, 0)
-			final_scores_cat[venue_name] = current_score + remaining_points * weight
+			final_scores_cat[venue_name] = current_score + remaining_points/TOTAL_POINTS * weight
 			remaining_points -= 1
 		return final_scores_cat
 
 	def add_text_to_final_scores(self, scores_feature, final_scores_cat, weight):
 		"""Add the weighted feature score of top 16 video to the final scores"""
-		remaining_points = self.limit
+		remaining_points = len(scores_feature)
+		TOTAL_POINTS = 136.0 # 1+2+...+16
 		for (score, video_id) in scores_feature:
 			venue_name = self.dict_videoid_name[video_id]
 			current_score = final_scores_cat.setdefault(venue_name, 0)
-			final_scores_cat[venue_name] = -current_score + remaining_points * weight
+			final_scores_cat[venue_name] = current_score + remaining_points/TOTAL_POINTS * weight
 			remaining_points -= 1
 		return final_scores_cat
+
+	def add_hist_to_final_scores(self, scores_feature, final_scores_cat, weight):
+		"""Add the weighted feature score of top 16 video to the final scores"""
+		remaining_points = len(scores_feature)
+		TOTAL_POINTS = 136.0 # 1+2+...+16
+		for (score, video_id) in scores_feature:
+			video_id = video_id.split("-")[0]
+			venue_name = self.dict_videoid_name[video_id]
+			current_score = final_scores_cat.setdefault(venue_name, 0)
+			final_scores_cat[venue_name] = current_score + remaining_points/TOTAL_POINTS * weight
+			remaining_points -= 1
+		return final_scores_cat
+
+	def fuse_scores(self, final_score_energy, final_score_zero_crossing, final_score_spect, final_score_mfcc, final_scores_text, final_scores_colorhist):
+		"""Fuse the scores by summing the five dictionaries"""
+		WEIGHT_ENERGY = self.weights_acoustic["energyWeight"]
+		WEIGHT_ZERO_CROSSING= self.weights_acoustic["zeroCrossingWeight"]
+		WEIGHT_SPECT = self.weights_acoustic["spectWeight"]
+		WEIGHT_MFCC = self.weights_acoustic["mfccWeight"]
+		WEIGHT_TEXT = self.weights["textWeight"]
+		WEIGHT_COLOR_HIST = self.weights["colorHistWeight"]
+		SUM_WEIGHTS = WEIGHT_ENERGY + WEIGHT_ZERO_CROSSING + WEIGHT_SPECT + WEIGHT_MFCC + WEIGHT_TEXT +WEIGHT_COLOR_HIST
+
+		sum_of_scores = { k: (WEIGHT_ENERGY * final_score_energy.get(k, 0) + WEIGHT_ZERO_CROSSING * final_score_zero_crossing.get(k, 0) + WEIGHT_SPECT * final_score_spect.get(k, 0) + WEIGHT_MFCC * final_score_mfcc.get(k, 0) + WEIGHT_TEXT * final_scores_text.get(k, 0) + WEIGHT_COLOR_HIST * final_scores_colorhist.get(k, 0))/SUM_WEIGHTS for k in set(final_score_energy) | set(final_score_zero_crossing) | set(final_score_spect) | set(final_score_mfcc) | set(final_scores_text) | set(final_scores_colorhist)}
+		NUM_OF_FEATURES = 7 # +1 to avoid dividing by 0
+		for k in sum_of_scores:
+			count = 0
+			if k in final_score_energy:
+				count += 1
+			if k in final_score_zero_crossing:
+				count += 1
+			if k in final_score_spect:
+				count += 1
+			if k in final_score_mfcc:
+				count += 1
+			if k in final_scores_text:
+				count += 1
+			sum_of_scores[k] = sum_of_scores[k]/(NUM_OF_FEATURES-count) # combo boost
+		return self.normalize_score(sum_of_scores)
+
+
+	def normalize_score(self, scores_feature):
+		"""Normalise the dictionary scores_features to that sum of values = 1.0"""
+		if len(scores_feature) == 0:
+			return scores_feature
+		factor=1.0/sum(scores_feature.itervalues())
+		for k in scores_feature:
+			scores_feature[k] = scores_feature[k] * factor
+		return scores_feature
 
 	def show_venue_category(self):
 		# Perform Text Search
@@ -251,15 +281,7 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		scores_text = []
 		if len(queryTags) > 0:
 			scores_text = search_text_index(queryTags, self.limit) # Will return a min heap (smaller is better)
-			print scores_text
-
-		scores_color_hist = []
-		# for frame in self.frames:
-		query = cv2.imread(self.frames[0])
-		queryfeatures = self.cd.describe(query)
-		scores_color_hist = self.colorhist_searcher.search(query, self.limit)
-		print scores_color_hist
-
+	
 		self.labels, self.features_energy = self.async_result_energy.get()
 		self.labels, self.features_zero_crossing = self.async_result_zero_crossing.get()
 		self.labels, self.features_spect = self.async_result_spect.get()
@@ -296,48 +318,89 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
         	WEIGHT_ZERO_CROSSING= self.weights_acoustic["zeroCrossingWeight"]
         	WEIGHT_SPECT = self.weights_acoustic["spectWeight"]
         	WEIGHT_MFCC = self.weights_acoustic["mfccWeight"]
-
+        	WEIGHT_COLOR_HIST = self.weights["colorHistWeight"]
         	WEIGHT_TEXT = self.weights["textWeight"]
-        	SUM_WEIGHTS = WEIGHT_ENERGY + WEIGHT_ZERO_CROSSING + WEIGHT_SPECT + WEIGHT_MFCC + WEIGHT_TEXT
+
+        	SUM_WEIGHTS = WEIGHT_ENERGY + WEIGHT_ZERO_CROSSING + WEIGHT_SPECT + WEIGHT_MFCC + WEIGHT_TEXT + WEIGHT_COLOR_HIST
 
         	final_scores_cat = {}
-        	final_scores_cat = self.add_to_final_scores(scores_energy, final_scores_cat, WEIGHT_ENERGY/SUM_WEIGHTS)
-        	print "Energy: ", final_scores_cat
-        	print ""
-        	final_scores_cat = {}
-        	final_scores_cat = self.add_to_final_scores(scores_zero_crossing, final_scores_cat, WEIGHT_ZERO_CROSSING/SUM_WEIGHTS)
-        	print "Zero Crossing: ", final_scores_cat
-        	print ""
-        	final_scores_cat = {}
-        	final_scores_cat = self.add_to_final_scores(scores_spect, final_scores_cat, WEIGHT_SPECT/SUM_WEIGHTS)
-        	print "SPECT: ", final_scores_cat
-        	print ""
-        	final_scores_cat = {}
-        	final_scores_cat = self.add_to_final_scores(scores_mfcc, final_scores_cat, WEIGHT_MFCC/SUM_WEIGHTS)
-        	print "MFCC: ", final_scores_cat
-        	print ""
+        	final_score_energy = {}
+        	if self.statesConfiguration["energy"] == True:
+	        	final_scores_cat = self.add_to_final_scores(scores_energy, final_scores_cat, WEIGHT_ENERGY/SUM_WEIGHTS)
+	        	final_score_energy = self.normalize_score(final_scores_cat)
+	        	print "Energy: ", final_score_energy
+	        	print ""
 
         	final_scores_cat = {}
-        	final_scores_cat = self.add_text_to_final_scores(scores_text, final_scores_cat, WEIGHT_TEXT/SUM_WEIGHTS)
-        	print "Text: ", final_scores_cat
+        	final_score_zero_crossing = {}
+        	if self.statesConfiguration["zeroCrossing"] == True:
+	        	final_scores_cat = self.add_to_final_scores(scores_zero_crossing, final_scores_cat, WEIGHT_ZERO_CROSSING/SUM_WEIGHTS)
+	        	final_score_zero_crossing = self.normalize_score(final_scores_cat)
+	        	print "Zero Crossing: ", final_score_zero_crossing 
+	        	print ""
 
-		if len(final_scores_cat) != 0:
-			venue_text = max(final_scores_cat, key=lambda k: final_scores_cat[k])
+        	final_scores_cat = {}
+        	final_score_spect = {}
+        	if self.statesConfiguration["spect"] == True:
+	        	final_scores_cat = self.add_to_final_scores(scores_spect, final_scores_cat, WEIGHT_SPECT/SUM_WEIGHTS)
+	        	final_score_spect = self.normalize_score(final_scores_cat)
+	        	print "SPECT: ", final_score_spect
+	        	print ""
+
+        	final_scores_cat = {}
+        	final_score_mfcc = {}
+        	if self.statesConfiguration["mfcc"] == True:
+	        	final_scores_cat = self.add_to_final_scores(scores_mfcc, final_scores_cat, WEIGHT_MFCC/SUM_WEIGHTS)
+	        	final_score_mfcc = self.normalize_score(final_scores_cat)
+	        	print "MFCC: ", final_score_mfcc
+	        	print ""
+
+        	final_scores_cat = {}
+        	final_scores_text = {}
+        	if len(queryTags) > 0:
+	        	final_scores_cat = self.add_text_to_final_scores(scores_text, final_scores_cat, WEIGHT_TEXT/SUM_WEIGHTS)
+	        	final_scores_text = self.normalize_score(final_scores_cat)
+	        	print "Text: ", final_scores_text
+	        	print ""
+
+			self.frames = self.async_result_extract_frame.get()
+
+			final_scores_cat = {}
+			final_scores_colorhist = {}
+			if self.statesConfiguration["colorHist"] == True:
+				scores_color_hist = self.async_result_color_hist.get()
+				final_scores_cat = self.add_hist_to_final_scores(scores_color_hist, final_scores_cat, WEIGHT_COLOR_HIST/SUM_WEIGHTS)
+				final_scores_colorhist = self.normalize_score(final_scores_cat)
+
+				print "Color Hist: ", final_scores_colorhist
+				print ""
+
+        	fused_scores = self.fuse_scores(final_score_energy, final_score_zero_crossing, final_score_spect, final_score_mfcc, final_scores_text, final_scores_colorhist)
+        	print "Final: ", fused_scores
+        	print ""
+
+		if len(fused_scores) != 0:
+			venue_texts = heapq.nlargest(3, fused_scores, key=fused_scores.get)
 		else:
-			venue_text = "?"
+			venue_texts.append("?")
 
-		pixmap = QPixmap("venue_background.jpg")
-		# pixmap.fill(Qt.white)
-		font = QFont("Arial", 30)
-		painter = QPainter()
-		painter.begin(pixmap)
-		painter.setFont(font)
-		painter.drawText(32, 75, venue_text)
-		painter.end()
 
-		venue_img_icon = QListWidgetItem(QIcon(pixmap), "")
-		self.listWidgetResults.addItem(venue_img_icon)
+		for venue_text in venue_texts:
+			tooltip = venue_text + "\n" + "Probability: " + ('%.1f%%' % (float(fused_scores[venue_text])*100))
+			pixmap = QPixmap("venue_background.jpg")
+			# pixmap.fill(Qt.white)
+			font = QFont("Arial", 30)
+			painter = QPainter()
+			painter.begin(pixmap)
+			painter.setFont(font)
+			painter.drawText(32, 75, venue_text)
+			painter.end()
+
+			venue_img_icon = QListWidgetItem(QIcon(pixmap), "")
+			venue_img_icon.setToolTip(tooltip)
+			self.listWidgetResults.addItem(venue_img_icon)
 		self.pad_rows_with_dummy_images()
+	# 	self.compare(final_results) # for testing
 
 	def extract_frame_async(self):
 		"""Extract frames"""
@@ -363,10 +426,7 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		print "videoname", self.videoname
 		error_file = open("errors_query.txt", "a")
 
-		#1. Extract Audio Clips
 		audio_storing_path = "dataset_vine/vine/validation/audio/" + self.videoname + ".wav"
-		print audio_storing_path
-		print self.filename
 		try:
 			# Extract Audio
 			clip = mp.VideoFileClip(self.filename)
@@ -374,28 +434,29 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		except:
 			error_file.write(self.filename + "\n")
 		
-
+		# Extract audio features
 		self.query_feature_mfcc, self.query_feature_spect, self.query_feature_zerocrossing, self.query_feature_energy = extract_acoustic.getAcousticFeatures(audio_storing_path)
 
 		self.frames = self.async_result_extract_frame.get()
+		# Color Histogram -process query image to feature vector
+		self.async_result_color_hist = self.pool_extract.apply_async(self.search_color_hist_in_background, () ) # tuple of args for foo
+
+
 		self.columns = len(self.frames)
 		image_count = 0
 		MAX_COLUMNS = 8
-		row = self.listWidgetResults.currentRow()
-		row += self.columns/MAX_COLUMNS + 1
 		if self.columns == 0:
 			self.frames.append("none.png")
 			print("Please extract the key frames for the selected video first!!!")
 			self.columns = 1
 
-		print self.frames
+		# print self.frames
 		for frame in self.frames:
 
 			r, c = divmod(image_count, self.columns)
 			try:
 				img_widget_icon = QListWidgetItem(QIcon(frame), "")
 				self.listWidgetResults.addItem(img_widget_icon)
-
 				image_count += 1
 			except Exception, e:
 				continue
@@ -405,99 +466,10 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 			tags = " ".join(self.tags_index[self.videoname])
 			self.tags_search.setText(tags)
 
-		# # Deep Learning
-		# self.async_result_deep_learn = self.pool.apply_async(self.search_deep_learn_in_background, ())
-		# # Visual Concept
-		# self.async_result_visual_concept = self.pool.apply_async(self.search_visual_concept_in_background, ())
-		# # Color Histogram -process query image to feature vector
-		# self.filename = str(self.filename)
-		# self.async_result_color_hist = self.pool.apply_async(self.search_color_hist_in_background, ()) # tuple of args for foo
-		# # SIFT
-		# self.async_result_sift = self.pool.apply_async(self.search_sift_in_background, ()) # tuple of args for foo
-		# sleep(1.6)
-		# self.label_query_img.setPixmap(QPixmap(self.filename).scaledToWidth(100) )
-		# self.label_query_img.setToolTip(base_img_id)
-
-		# # If tags exist, load them into the searchbar
-		# if base_img_id in self.tags_index:
-		# 	tags = " ".join(self.tags_index[base_img_id])
-		# 	self.tags_search.setText(tags)
 		self.raise_()
 		self.activateWindow()
 		self.btn_search.setFocus()
-	
 
-	# def normalize_score(self, score, results):
-	# 	"""Normalises score to 0(best) -> 1(worst)"""
-	# 	if len(results) == 0:
-	# 		return 0.5
-	# 	normalized_score = score
-	# 	maxScore = results[len(results)-1][0]
-	# 	minScore = results[0][0]
-	# 	if maxScore == minScore: 
-	# 	    normalized_score = 0.5
-	# 	else:
-	# 	    if len(results) > 1:
-	# 	        normalized_score = (normalized_score - minScore) / (maxScore - minScore)
-	# 	return normalized_score
-
-	# def get_max(self, results):
-	# 	"""Return the largest score from the results"""
-	# 	if len(results) == 0:
-	# 		return 1
-	# 	return results[len(results)-1][0]
-
-	# 	# Perform search on SIFT
-	# 	results_sift = []
-	# 	if self.statesConfiguration["visualKeyword"] == True:
-	# 		results_sift = self.async_result_sift.get()
-
-	# 	# Search Visual Concept
-	# 	results_visual_concept = []
-	# 	if self.statesConfiguration["visualConcept"] == True:
-	# 		results_visual_concept = self.async_result_visual_concept.get()
-
-	# 	# Perform the search on Color Histogram
-	# 	results_color_hist = []
-	# 	if self.statesConfiguration["colorHist"] == True:
-	# 		results_color_hist = self.async_result_color_hist.get()
-
-	# 	results_deep_learn = []
-	# 	if self.statesConfiguration["deepLearning"] == True:
-	# 		results_deep_learn = self.async_result_deep_learn.get()
-		
-	# 	final_results, all_candidates = fuse_scores(self.statesConfiguration, self.weights, results_color_hist, results_sift, results_text, results_deep_learn, results_visual_concept)
-
-	# 	for (score, img_id) in final_results:
-	# 		fullpath = glob.glob(os.path.join(os.path.curdir, "ImageData", "train", "data", "*", img_id) )[0]
-	# 		img_widget_icon = QListWidgetItem(QIcon(fullpath), img_id)
-
-	# 		tooltip = str(img_id) + "\n" + "Final Score: " + ('%.3f' % score) + "\n"
-	# 		dict_scores = all_candidates[img_id]
-			
-	# 		colorHistScore = dict_scores.get("colorHist", self.get_max(results_color_hist))
-	# 		siftScore = dict_scores.get("sift", self.get_max(results_sift))
-	# 		visualConceptScore = dict_scores.get("visualConcept", self.get_max(results_visual_concept))
-	# 		deepLearningScore = dict_scores.get("deepLearn", self.get_max(results_deep_learn))
-	# 		textScore = dict_scores.get("text", self.get_max(results_text))
-
-	# 		colorHistScore = self.normalize_score(colorHistScore, results_color_hist)
-	# 		siftScore = self.normalize_score(siftScore, results_sift)
-	# 		visualConceptScore = self.normalize_score(visualConceptScore, results_visual_concept)
-	# 		deepLearningScore = self.normalize_score(deepLearningScore, results_deep_learn)
-	# 		textScore = self.normalize_score(textScore, results_text)
-
-	# 		tooltip += "Color Hist: " + ('%.3f' % colorHistScore) + "\n"
-	# 		tooltip += "Visual Keyword: " + ('%.3f' % siftScore) + "\n"
-	# 		tooltip += "Visual Concept: " + ('%.3f' % visualConceptScore) + "\n"
-	# 		tooltip += "Deep Learning: " + ('%.3f' % deepLearningScore) + "\n"
-	# 		if len(results_text) == 0:
-	# 			tooltip += "Text: N/A"  
-	# 		else:
-	# 			tooltip += "Text: " + ('%.3f' % textScore)
-	# 		img_widget_icon.setToolTip(tooltip)
-	# 		self.listWidgetResults.addItem(img_widget_icon)
-	# 	self.compare(final_results)
 
 
 	def clear_results(self):
@@ -513,7 +485,6 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 	 	else:
 	 		self.tags_index = index_tags_normal(file_train_tags)
 	 		file_train_tags.close()
-	 		# print self.tags_index
 
 	# def compare(self, final_results):
 	# 	"""For testing F1"""
