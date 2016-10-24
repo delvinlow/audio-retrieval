@@ -37,7 +37,6 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		self.frame_storing_path = frame_storing_path
 		self.limit = 100
 		
-		self.colorhist_searcher = Searcher("colorhist/index_color_hist.csv")
 		self.cd = ColorDescriptor((8, 12, 3))
 
 		super(Window, self).__init__()
@@ -169,16 +168,28 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		choice = QtGui.QMessageBox.question(self, "Quit?", 
 			"Are you sure to quit?", QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
 		if choice == QtGui.QMessageBox.Yes:
-			self.colorhist_searcher.f.close()
 			sys.exit()
 
-	def search_color_hist_in_background(self, frame):
-		query = cv2.imread(frame)
-		# load the query image and describe it
-		queryfeatures = self.cd.describe(query)
-		results = self.colorhist_searcher.search(queryfeatures, self.limit)
-		return results
-
+	def search_color_hist_in_background(self, frames):
+		"""Compare using color histogram""" 
+		# Try using middle frame first
+		middleLen = len(frames)/2
+		middleFrame = frames[middleLen]
+		scores_color_hist = []
+		query = cv2.imread(middleFrame)
+		if query != None:
+			queryfeatures = ColorDescriptor((8, 12, 3)).describe(query)
+			scores_color_hist = scores_color_hist + Searcher("colorhist/index_color_hist_small.csv").search(queryfeatures, self.limit)
+			scores_color_hist = scores_color_hist + Searcher("colorhist/index_color_hist_small_normal.csv").search(queryfeatures, self.limit)
+		else:
+			for frame in reversed(self.frames):
+				query = cv2.imread(frame)
+				if query != None:
+					queryfeatures = ColorDescriptor((8, 12, 3)).describe(query)
+					scores_color_hist = scores_color_hist + Searcher("colorhist/index_color_hist_small.csv").search(queryfeatures, self.limit)
+					scores_color_hist = scores_color_hist + Searcher("colorhist/index_color_hist_small_normal.csv").search(queryfeatures, self.limit)
+					break
+		return scores_color_hist
 
 	def pad_rows_with_dummy_images(self):
 		count = self.listWidgetResults.count()
@@ -188,9 +199,10 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		else:
 			remainder = MAX_COLUMNS - (count % MAX_COLUMNS) # -1 for classification
 
-		for frame in range(0, remainder):
-			img_widget_icon = QListWidgetItem(QIcon("transparent.png"), "")
-			self.listWidgetResults.addItem(img_widget_icon)
+		if count % MAX_COLUMNS != 0:
+			for frame in range(0, remainder):
+				img_widget_icon = QListWidgetItem(QIcon("transparent.png"), "")
+				self.listWidgetResults.addItem(img_widget_icon)
 
 	def get_top_scorers(self, scores, limit=16):
 		"""Get top 16 results from the list scores"""
@@ -242,7 +254,10 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		WEIGHT_ZERO_CROSSING= self.weights_acoustic["zeroCrossingWeight"]
 		WEIGHT_SPECT = self.weights_acoustic["spectWeight"]
 		WEIGHT_MFCC = self.weights_acoustic["mfccWeight"]
-		WEIGHT_TEXT = self.weights["textWeight"]
+		if len(str(self.tags_search.text().toLatin1())) > 0:
+			WEIGHT_TEXT = self.weights["textWeight"]
+		else: 
+			WEIGHT_TEXT = 0
 		WEIGHT_COLOR_HIST = self.weights["colorHistWeight"]
 		SUM_WEIGHTS = WEIGHT_ENERGY + WEIGHT_ZERO_CROSSING + WEIGHT_SPECT + WEIGHT_MFCC + WEIGHT_TEXT +WEIGHT_COLOR_HIST
 
@@ -286,109 +301,105 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		self.labels, self.features_spect = self.async_result_spect.get()
 		self.labels, self.features_mfcc = self.async_result_mfcc.get()
 
-		if self.columns == 0:
-			print("Please extract the key frames for the selected video first!!!")
-		else:
-			scores_energy = {}
-			for i in range(0, len(self.features_energy)):
-				score_energy = acoustic_searcher.array_sum(self.features_energy[i], self.query_feature_energy)
-				video_id = self.labels[i]
-				scores_energy[video_id] = score_energy
+		scores_energy = {}
+		for i in range(0, len(self.features_energy)):
+			score_energy = acoustic_searcher.array_sum(self.features_energy[i], self.query_feature_energy)
+			video_id = self.labels[i]
+			scores_energy[video_id] = score_energy
 
-			scores_zero_crossing = {}
-			for i in range(0, len(self.features_zero_crossing)):
-				score_zero_crossing = acoustic_searcher.array_sum(self.features_zero_crossing[i], self.query_feature_zerocrossing)
-				video_id = self.labels[i]
-				scores_zero_crossing[video_id] = score_zero_crossing		
-	
-			scores_spect = {}
-			for i in range(0, len(self.features_spect)):
-				score_spect = acoustic_searcher.matrix_sum(self.features_spect[i], self.query_feature_spect)
-				video_id = self.labels[i]
-				scores_spect[video_id] = score_spect
+		scores_zero_crossing = {}
+		for i in range(0, len(self.features_zero_crossing)):
+			score_zero_crossing = acoustic_searcher.array_sum(self.features_zero_crossing[i], self.query_feature_zerocrossing)
+			video_id = self.labels[i]
+			scores_zero_crossing[video_id] = score_zero_crossing		
 
-			scores_mfcc = {}
-			for i in range(0, len(self.features_mfcc)):
-				score_mfcc = acoustic_searcher.matrix_sum(self.features_mfcc[i], self.query_feature_mfcc)
-				video_id = self.labels[i]
-				scores_mfcc[video_id] = score_mfcc
+		scores_spect = {}
+		for i in range(0, len(self.features_spect)):
+			score_spect = acoustic_searcher.matrix_sum(self.features_spect[i], self.query_feature_spect)
+			video_id = self.labels[i]
+			scores_spect[video_id] = score_spect
 
-			WEIGHT_ENERGY = self.weights_acoustic["energyWeight"]
-			WEIGHT_ZERO_CROSSING= self.weights_acoustic["zeroCrossingWeight"]
-			WEIGHT_SPECT = self.weights_acoustic["spectWeight"]
-			WEIGHT_MFCC = self.weights_acoustic["mfccWeight"]
-			WEIGHT_COLOR_HIST = self.weights["colorHistWeight"]
+		scores_mfcc = {}
+		for i in range(0, len(self.features_mfcc)):
+			score_mfcc = acoustic_searcher.matrix_sum(self.features_mfcc[i], self.query_feature_mfcc)
+			video_id = self.labels[i]
+			scores_mfcc[video_id] = score_mfcc
+
+		WEIGHT_ENERGY = self.weights_acoustic["energyWeight"]
+		WEIGHT_ZERO_CROSSING= self.weights_acoustic["zeroCrossingWeight"]
+		WEIGHT_SPECT = self.weights_acoustic["spectWeight"]
+		WEIGHT_MFCC = self.weights_acoustic["mfccWeight"]
+		WEIGHT_COLOR_HIST = self.weights["colorHistWeight"]
+		if len(queryTags) > 0:
 			WEIGHT_TEXT = self.weights["textWeight"]
+		else:
+			WEIGHT_TEXT = 0
 
-			SUM_WEIGHTS = WEIGHT_ENERGY + WEIGHT_ZERO_CROSSING + WEIGHT_SPECT + WEIGHT_MFCC + WEIGHT_TEXT + WEIGHT_COLOR_HIST
+		SUM_WEIGHTS = WEIGHT_ENERGY + WEIGHT_ZERO_CROSSING + WEIGHT_SPECT + WEIGHT_MFCC + WEIGHT_TEXT + WEIGHT_COLOR_HIST
 
-			final_scores_cat = {}
-			final_score_energy = {}
-			if self.statesConfiguration["energy"] == True:
-				final_scores_cat = self.add_to_final_scores(scores_energy, final_scores_cat, WEIGHT_ENERGY/SUM_WEIGHTS)
-				final_score_energy = self.normalize_score(final_scores_cat)
-				print "Energy: ", final_score_energy
-				print ""
-
-			final_scores_cat = {}
-			final_score_zero_crossing = {}
-			if self.statesConfiguration["zeroCrossing"] == True:
-				final_scores_cat = self.add_to_final_scores(scores_zero_crossing, final_scores_cat, WEIGHT_ZERO_CROSSING/SUM_WEIGHTS)
-				final_score_zero_crossing = self.normalize_score(final_scores_cat)
-				print "Zero Crossing: ", final_score_zero_crossing 
-				print ""
-
-			final_scores_cat = {}
-			final_score_spect = {}
-			if self.statesConfiguration["spect"] == True:
-				final_scores_cat = self.add_to_final_scores(scores_spect, final_scores_cat, WEIGHT_SPECT/SUM_WEIGHTS)
-				final_score_spect = self.normalize_score(final_scores_cat)
-				print "SPECT: ", final_score_spect
-				print ""
-
-			final_scores_cat = {}
-			final_score_mfcc = {}
-			if self.statesConfiguration["mfcc"] == True:
-				final_scores_cat = self.add_to_final_scores(scores_mfcc, final_scores_cat, WEIGHT_MFCC/SUM_WEIGHTS)
-				final_score_mfcc = self.normalize_score(final_scores_cat)
-				print "MFCC: ", final_score_mfcc
-				print ""
-
-			final_scores_cat = {}
-			final_scores_colorhist = {}
-
-			if self.statesConfiguration["colorHist"] == True:
-				print "in here"
-				scores_color_hist = self.async_result_color_hist.get()
-				final_scores_cat = self.add_hist_to_final_scores(scores_color_hist, final_scores_cat, WEIGHT_COLOR_HIST/SUM_WEIGHTS)
-				final_scores_colorhist = self.normalize_score(final_scores_cat)
-				print "Color Hist: ", final_scores_colorhist
-				print ""
-
-			final_scores_cat = {}
-			final_scores_text = {}
-
-			if len(queryTags) > 0:
-				final_scores_cat = self.add_text_to_final_scores(scores_text, final_scores_cat, WEIGHT_TEXT/SUM_WEIGHTS)
-				final_scores_text = self.normalize_score(final_scores_cat)
-				print "Text: ", final_scores_text
-				print ""
-
-
-			fused_scores = self.fuse_scores(final_score_energy, final_score_zero_crossing, final_score_spect, final_score_mfcc, final_scores_text, final_scores_colorhist)
-			print "Final: ", fused_scores
+		final_scores_cat = {}
+		final_score_energy = {}
+		if self.statesConfiguration["energy"] == True:
+			final_scores_cat = self.add_to_final_scores(scores_energy, final_scores_cat, WEIGHT_ENERGY/SUM_WEIGHTS)
+			final_score_energy = self.normalize_score(final_scores_cat)
+			print "Energy: ", final_score_energy
 			print ""
+
+		final_scores_cat = {}
+		final_score_zero_crossing = {}
+		if self.statesConfiguration["zeroCrossing"] == True:
+			final_scores_cat = self.add_to_final_scores(scores_zero_crossing, final_scores_cat, WEIGHT_ZERO_CROSSING/SUM_WEIGHTS)
+			final_score_zero_crossing = self.normalize_score(final_scores_cat)
+			print "Zero Crossing: ", final_score_zero_crossing 
+			print ""
+
+		final_scores_cat = {}
+		final_score_spect = {}
+		if self.statesConfiguration["spect"] == True:
+			final_scores_cat = self.add_to_final_scores(scores_spect, final_scores_cat, WEIGHT_SPECT/SUM_WEIGHTS)
+			final_score_spect = self.normalize_score(final_scores_cat)
+			print "SPECT: ", final_score_spect
+			print ""
+
+		final_scores_cat = {}
+		final_score_mfcc = {}
+		if self.statesConfiguration["mfcc"] == True:
+			final_scores_cat = self.add_to_final_scores(scores_mfcc, final_scores_cat, WEIGHT_MFCC/SUM_WEIGHTS)
+			final_score_mfcc = self.normalize_score(final_scores_cat)
+			print "MFCC: ", final_score_mfcc
+			print ""
+
+		final_scores_cat = {}
+		final_scores_colorhist = {}
+		if self.statesConfiguration["colorHist"] == True:
+			print "in here"
+			scores_color_hist = self.async_result_color_hist.get()
+			print "Frames are " ,self.frames
+			final_scores_cat = self.add_hist_to_final_scores(scores_color_hist, final_scores_cat, WEIGHT_COLOR_HIST/SUM_WEIGHTS)
+			final_scores_colorhist = self.normalize_score(final_scores_cat)
+			print "Color Hist: ", final_scores_colorhist
+			print ""
+
+		final_scores_cat = {}
+		final_scores_text = {}
+		if len(queryTags) > 0:
+			final_scores_cat = self.add_text_to_final_scores(scores_text, final_scores_cat, WEIGHT_TEXT/SUM_WEIGHTS)
+			final_scores_text = self.normalize_score(final_scores_cat)
+			print "Text: ", final_scores_text
+			print ""
+
+		fused_scores = self.fuse_scores(final_score_energy, final_score_zero_crossing, final_score_spect, final_score_mfcc, final_scores_text, final_scores_colorhist)
+		print "Final: ", fused_scores
+		print ""
 
 		if len(fused_scores) != 0:
 			venue_texts = heapq.nlargest(3, fused_scores, key=fused_scores.get)
 		else:
 			venue_texts.append("?")
 
-
 		for venue_text in venue_texts:
 			tooltip = venue_text + "\n" + "Probability: " + ('%.1f%%' % (float(fused_scores[venue_text])*100))
 			pixmap = QPixmap("venue_background.jpg")
-			# pixmap.fill(Qt.white)
 			font = QFont("Arial", 30)
 			painter = QPainter()
 			painter.begin(pixmap)
@@ -400,10 +411,12 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 			venue_img_icon.setToolTip(tooltip)
 			self.listWidgetResults.addItem(venue_img_icon)
 		self.pad_rows_with_dummy_images()
-	# 	self.compare(final_results) # for testing
 
 	def extract_frame_async(self):
 		"""Extract frames"""
+		existing_frames = glob.glob("dataset_vine/vine/validation/frame/"  + self.videoname + "-" + "*")
+		if len(existing_frames) > 0:
+			return existing_frames
 		frame_storing_path = "dataset_vine/vine/validation/frame/"  + self.videoname + "-"
 		vid_cap = cv2.VideoCapture(self.filename) # Open the video file	
 		getKeyFrames(vid_cap, frame_storing_path)
@@ -419,6 +432,11 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		allframes = os.listdir("dataset_vine/vine/validation/frame/")
 		self.filename = str(self.filename)
 		self.videoname = self.filename.strip().split("/")[-1].replace(".mp4","")
+		# If tags exist, load them into the searchbar
+		if self.videoname in self.tags_index:
+			tags = " ".join(self.tags_index[self.videoname])
+			self.tags_search.setText(tags)
+
 
 		self.async_result_extract_frame = self.pool.apply_async(self.extract_frame_async, ())
 
@@ -437,24 +455,16 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		self.query_feature_mfcc, self.query_feature_spect, self.query_feature_zerocrossing, self.query_feature_energy = extract_acoustic.getAcousticFeatures(audio_storing_path)
 
 		self.frames = self.async_result_extract_frame.get()
-		print "THIS ", self.frames
-		# Color Histogram -process query image to feature vector
-		middleLen = len(self.frames)/2
-		middleFrame = self.frames[middleLen]
-		print "Middle Len", middleFrame
-		self.async_result_color_hist = self.pool.apply_async(self.search_color_hist_in_background, (middleFrame, ) ) # tuple of args for foo
+		self.async_result_color_hist = self.pool.apply_async(self.search_color_hist_in_background, (self.frames, ) ) # tuple of args for foo
 
 		self.columns = len(self.frames)
 		image_count = 0
 		MAX_COLUMNS = 8
-		if self.columns == 0:
-			self.frames.append("none.png")
-			print("Please extract the key frames for the selected video first!!!")
-			self.columns = 1
 
 		# print self.frames
 		for frame in self.frames:
-
+			if cv2.imread(frame) == None:
+				continue
 			r, c = divmod(image_count, self.columns)
 			try:
 				img_widget_icon = QListWidgetItem(QIcon(frame), "")
@@ -463,16 +473,9 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 			except Exception, e:
 				continue
 
-		# If tags exist, load them into the searchbar
-		if self.videoname in self.tags_index:
-			tags = " ".join(self.tags_index[self.videoname])
-			self.tags_search.setText(tags)
-
 		self.raise_()
 		self.activateWindow()
 		self.btn_search.setFocus()
-
-
 
 	def clear_results(self):
 		self.listWidgetResults.clear()

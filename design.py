@@ -139,7 +139,7 @@ class Ui_MainWindow(object):
         self.doubleSpinBoxColorHist = QtGui.QDoubleSpinBox(self.centralwidget)
         self.doubleSpinBoxColorHist.setDecimals(1)
         self.doubleSpinBoxColorHist.setSingleStep(0.5)
-        self.doubleSpinBoxColorHist.setProperty("value", 1.0)
+        self.doubleSpinBoxColorHist.setProperty("value", 3.0)
         self.doubleSpinBoxColorHist.setObjectName(_fromUtf8("doubleSpinBoxColorHist"))
         self.horizontalLayout_2.addWidget(self.doubleSpinBoxColorHist)
         spacerItem1 = QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)
