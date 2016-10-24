@@ -28,6 +28,7 @@ from preprocessing.extract_frame import getKeyFrames
 
 class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 	def __init__(self, search_path, frame_storing_path):
+		self.frames = []
 		self.pool = ThreadPool(processes=4)
 		self.pool_extract = ThreadPool(processes=4)
 
@@ -173,6 +174,7 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 			sys.exit()
 
 	def search_color_hist_in_background(self):
+		print "THAT ", self.frames
 		middleLen = len(self.frames) / 2
 		query = cv2.imread(self.frames[middleLen])
 		# load the query image and describe it
@@ -355,25 +357,26 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 	        	print "MFCC: ", final_score_mfcc
 	        	print ""
 
+			self.frames = self.async_result_extract_frame.get()
+			final_scores_cat = {}
+			final_scores_colorhist = {}
+
+			if self.statesConfiguration["colorHist"] == True:
+				scores_color_hist = self.async_result_color_hist.get()
+				final_scores_cat = self.add_hist_to_final_scores(scores_color_hist, final_scores_cat, WEIGHT_COLOR_HIST/SUM_WEIGHTS)
+				final_scores_colorhist = self.normalize_score(final_scores_cat)
+				print "Color Hist: ", final_scores_colorhist
+				print ""
+
         	final_scores_cat = {}
         	final_scores_text = {}
+
         	if len(queryTags) > 0:
 	        	final_scores_cat = self.add_text_to_final_scores(scores_text, final_scores_cat, WEIGHT_TEXT/SUM_WEIGHTS)
 	        	final_scores_text = self.normalize_score(final_scores_cat)
 	        	print "Text: ", final_scores_text
 	        	print ""
 
-			self.frames = self.async_result_extract_frame.get()
-
-			final_scores_cat = {}
-			final_scores_colorhist = {}
-			if self.statesConfiguration["colorHist"] == True:
-				scores_color_hist = self.async_result_color_hist.get()
-				final_scores_cat = self.add_hist_to_final_scores(scores_color_hist, final_scores_cat, WEIGHT_COLOR_HIST/SUM_WEIGHTS)
-				final_scores_colorhist = self.normalize_score(final_scores_cat)
-
-				print "Color Hist: ", final_scores_colorhist
-				print ""
 
         	fused_scores = self.fuse_scores(final_score_energy, final_score_zero_crossing, final_score_spect, final_score_mfcc, final_scores_text, final_scores_colorhist)
         	print "Final: ", fused_scores
@@ -406,7 +409,7 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		"""Extract frames"""
 		frame_storing_path = "dataset_vine/vine/validation/frame/"  + self.videoname + "-"
 		vid_cap = cv2.VideoCapture(self.filename) # Open the video file	
-		self.frames = getKeyFrames(vid_cap, frame_storing_path)
+		getKeyFrames(vid_cap, frame_storing_path)
 		vid_cap.release()
 		return glob.glob("dataset_vine/vine/validation/frame/"  + self.videoname + "-" + "*")
 		
@@ -419,7 +422,6 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		allframes = os.listdir("dataset_vine/vine/validation/frame/")
 		self.filename = str(self.filename)
 		self.videoname = self.filename.strip().split("/")[-1].replace(".mp4","")
-		self.frames = []
 
 		self.async_result_extract_frame = self.pool_extract.apply_async(self.extract_frame_async, ())
 
@@ -438,9 +440,10 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		self.query_feature_mfcc, self.query_feature_spect, self.query_feature_zerocrossing, self.query_feature_energy = extract_acoustic.getAcousticFeatures(audio_storing_path)
 
 		self.frames = self.async_result_extract_frame.get()
+		print "THIS ", self.frames
 		# Color Histogram -process query image to feature vector
 		self.async_result_color_hist = self.pool_extract.apply_async(self.search_color_hist_in_background, () ) # tuple of args for foo
-
+		print self.search_color_hist_in_background()
 
 		self.columns = len(self.frames)
 		image_count = 0
