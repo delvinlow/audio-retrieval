@@ -29,8 +29,7 @@ from preprocessing.extract_frame import getKeyFrames
 class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 	def __init__(self, search_path, frame_storing_path):
 		self.frames = []
-		self.pool = ThreadPool(processes=4)
-		self.pool_extract = ThreadPool(processes=4)
+		self.pool = ThreadPool(processes=8)
 
 		self.init_audio_index()
 		self.build_venues_index()
@@ -173,13 +172,11 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 			self.colorhist_searcher.f.close()
 			sys.exit()
 
-	def search_color_hist_in_background(self):
-		print "THAT ", self.frames
-		middleLen = len(self.frames) / 2
-		query = cv2.imread(self.frames[middleLen])
+	def search_color_hist_in_background(self, frame):
+		query = cv2.imread(frame)
 		# load the query image and describe it
-		self.queryfeatures = self.cd.describe(query)
-		results = self.colorhist_searcher.search(self.queryfeatures, self.limit)
+		queryfeatures = self.cd.describe(query)
+		results = self.colorhist_searcher.search(queryfeatures, self.limit)
 		return results
 
 
@@ -316,71 +313,71 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 				video_id = self.labels[i]
 				scores_mfcc[video_id] = score_mfcc
 
-        	WEIGHT_ENERGY = self.weights_acoustic["energyWeight"]
-        	WEIGHT_ZERO_CROSSING= self.weights_acoustic["zeroCrossingWeight"]
-        	WEIGHT_SPECT = self.weights_acoustic["spectWeight"]
-        	WEIGHT_MFCC = self.weights_acoustic["mfccWeight"]
-        	WEIGHT_COLOR_HIST = self.weights["colorHistWeight"]
-        	WEIGHT_TEXT = self.weights["textWeight"]
+			WEIGHT_ENERGY = self.weights_acoustic["energyWeight"]
+			WEIGHT_ZERO_CROSSING= self.weights_acoustic["zeroCrossingWeight"]
+			WEIGHT_SPECT = self.weights_acoustic["spectWeight"]
+			WEIGHT_MFCC = self.weights_acoustic["mfccWeight"]
+			WEIGHT_COLOR_HIST = self.weights["colorHistWeight"]
+			WEIGHT_TEXT = self.weights["textWeight"]
 
-        	SUM_WEIGHTS = WEIGHT_ENERGY + WEIGHT_ZERO_CROSSING + WEIGHT_SPECT + WEIGHT_MFCC + WEIGHT_TEXT + WEIGHT_COLOR_HIST
+			SUM_WEIGHTS = WEIGHT_ENERGY + WEIGHT_ZERO_CROSSING + WEIGHT_SPECT + WEIGHT_MFCC + WEIGHT_TEXT + WEIGHT_COLOR_HIST
 
-        	final_scores_cat = {}
-        	final_score_energy = {}
-        	if self.statesConfiguration["energy"] == True:
-	        	final_scores_cat = self.add_to_final_scores(scores_energy, final_scores_cat, WEIGHT_ENERGY/SUM_WEIGHTS)
-	        	final_score_energy = self.normalize_score(final_scores_cat)
-	        	print "Energy: ", final_score_energy
-	        	print ""
+			final_scores_cat = {}
+			final_score_energy = {}
+			if self.statesConfiguration["energy"] == True:
+				final_scores_cat = self.add_to_final_scores(scores_energy, final_scores_cat, WEIGHT_ENERGY/SUM_WEIGHTS)
+				final_score_energy = self.normalize_score(final_scores_cat)
+				print "Energy: ", final_score_energy
+				print ""
 
-        	final_scores_cat = {}
-        	final_score_zero_crossing = {}
-        	if self.statesConfiguration["zeroCrossing"] == True:
-	        	final_scores_cat = self.add_to_final_scores(scores_zero_crossing, final_scores_cat, WEIGHT_ZERO_CROSSING/SUM_WEIGHTS)
-	        	final_score_zero_crossing = self.normalize_score(final_scores_cat)
-	        	print "Zero Crossing: ", final_score_zero_crossing 
-	        	print ""
+			final_scores_cat = {}
+			final_score_zero_crossing = {}
+			if self.statesConfiguration["zeroCrossing"] == True:
+				final_scores_cat = self.add_to_final_scores(scores_zero_crossing, final_scores_cat, WEIGHT_ZERO_CROSSING/SUM_WEIGHTS)
+				final_score_zero_crossing = self.normalize_score(final_scores_cat)
+				print "Zero Crossing: ", final_score_zero_crossing 
+				print ""
 
-        	final_scores_cat = {}
-        	final_score_spect = {}
-        	if self.statesConfiguration["spect"] == True:
-	        	final_scores_cat = self.add_to_final_scores(scores_spect, final_scores_cat, WEIGHT_SPECT/SUM_WEIGHTS)
-	        	final_score_spect = self.normalize_score(final_scores_cat)
-	        	print "SPECT: ", final_score_spect
-	        	print ""
+			final_scores_cat = {}
+			final_score_spect = {}
+			if self.statesConfiguration["spect"] == True:
+				final_scores_cat = self.add_to_final_scores(scores_spect, final_scores_cat, WEIGHT_SPECT/SUM_WEIGHTS)
+				final_score_spect = self.normalize_score(final_scores_cat)
+				print "SPECT: ", final_score_spect
+				print ""
 
-        	final_scores_cat = {}
-        	final_score_mfcc = {}
-        	if self.statesConfiguration["mfcc"] == True:
-	        	final_scores_cat = self.add_to_final_scores(scores_mfcc, final_scores_cat, WEIGHT_MFCC/SUM_WEIGHTS)
-	        	final_score_mfcc = self.normalize_score(final_scores_cat)
-	        	print "MFCC: ", final_score_mfcc
-	        	print ""
+			final_scores_cat = {}
+			final_score_mfcc = {}
+			if self.statesConfiguration["mfcc"] == True:
+				final_scores_cat = self.add_to_final_scores(scores_mfcc, final_scores_cat, WEIGHT_MFCC/SUM_WEIGHTS)
+				final_score_mfcc = self.normalize_score(final_scores_cat)
+				print "MFCC: ", final_score_mfcc
+				print ""
 
-			self.frames = self.async_result_extract_frame.get()
 			final_scores_cat = {}
 			final_scores_colorhist = {}
 
 			if self.statesConfiguration["colorHist"] == True:
+				print "in here"
 				scores_color_hist = self.async_result_color_hist.get()
 				final_scores_cat = self.add_hist_to_final_scores(scores_color_hist, final_scores_cat, WEIGHT_COLOR_HIST/SUM_WEIGHTS)
 				final_scores_colorhist = self.normalize_score(final_scores_cat)
 				print "Color Hist: ", final_scores_colorhist
 				print ""
 
-        	final_scores_cat = {}
-        	final_scores_text = {}
+			final_scores_cat = {}
+			final_scores_text = {}
 
-        	if len(queryTags) > 0:
-	        	final_scores_cat = self.add_text_to_final_scores(scores_text, final_scores_cat, WEIGHT_TEXT/SUM_WEIGHTS)
-	        	final_scores_text = self.normalize_score(final_scores_cat)
-	        	print "Text: ", final_scores_text
-	        	print ""
+			if len(queryTags) > 0:
+				final_scores_cat = self.add_text_to_final_scores(scores_text, final_scores_cat, WEIGHT_TEXT/SUM_WEIGHTS)
+				final_scores_text = self.normalize_score(final_scores_cat)
+				print "Text: ", final_scores_text
+				print ""
 
 
-        	fused_scores = self.fuse_scores(final_score_energy, final_score_zero_crossing, final_score_spect, final_score_mfcc, final_scores_text, final_scores_colorhist)
-        	print "Final: ", fused_scores
-        	print ""
+			fused_scores = self.fuse_scores(final_score_energy, final_score_zero_crossing, final_score_spect, final_score_mfcc, final_scores_text, final_scores_colorhist)
+			print "Final: ", fused_scores
+			print ""
 
 		if len(fused_scores) != 0:
 			venue_texts = heapq.nlargest(3, fused_scores, key=fused_scores.get)
@@ -423,7 +420,7 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		self.filename = str(self.filename)
 		self.videoname = self.filename.strip().split("/")[-1].replace(".mp4","")
 
-		self.async_result_extract_frame = self.pool_extract.apply_async(self.extract_frame_async, ())
+		self.async_result_extract_frame = self.pool.apply_async(self.extract_frame_async, ())
 
 		print "videoname", self.videoname
 		error_file = open("errors_query.txt", "a")
@@ -442,8 +439,10 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		self.frames = self.async_result_extract_frame.get()
 		print "THIS ", self.frames
 		# Color Histogram -process query image to feature vector
-		self.async_result_color_hist = self.pool_extract.apply_async(self.search_color_hist_in_background, () ) # tuple of args for foo
-		print self.search_color_hist_in_background()
+		middleLen = len(self.frames)/2
+		middleFrame = self.frames[middleLen]
+		print "Middle Len", middleFrame
+		self.async_result_color_hist = self.pool.apply_async(self.search_color_hist_in_background, (middleFrame, ) ) # tuple of args for foo
 
 		self.columns = len(self.frames)
 		image_count = 0
@@ -482,12 +481,12 @@ class Window(QtGui.QMainWindow, design.Ui_MainWindow):
 		# Read in query tags
 		test_tags = os.path.join(os.path.dirname(__file__), "dataset_vine", "vine-desc-validation.txt")
 		try:
-		 	file_train_tags = open(test_tags, "r")
-	 	except IOError:
-	 		print "Cannot open vine-desc-validation.txt"
-	 	else:
-	 		self.tags_index = index_tags_normal(file_train_tags)
-	 		file_train_tags.close()
+			file_train_tags = open(test_tags, "r")
+		except IOError:
+			print "Cannot open vine-desc-validation.txt"
+		else:
+			self.tags_index = index_tags_normal(file_train_tags)
+			file_train_tags.close()
 
 	# def compare(self, final_results):
 	# 	"""For testing F1"""
