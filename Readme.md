@@ -1,8 +1,7 @@
-Submission By:
-Group 15
-Kang You Wei A0108380L
-Low Zheng Yang A0110930X
-Lu Yuehan A0119387U
+Our System:
+
+![Venue Classifier](https://github.com/bingoyahoo/cs2108assignment2/blob/master/Latest%20Screenshot.png)
+
 
 General Notes:
 
