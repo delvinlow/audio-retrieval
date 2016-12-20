@@ -39,6 +39,8 @@ are very long operations that can take hours.
 Run extract_features_script.py when you have the audio and videos to
 generate the acoustic features.
 
+Training files are not included. Download them [here](https://drive.google.com/file/d/0BzCduZQhBlNybURhWlBsRGcwUjA/view?usp=sh aring).
+
 
 
 
