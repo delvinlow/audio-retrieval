@@ -1,4 +1,4 @@
-##Introduction:
+## Introduction:
 This is a simple audio-based venue classifier program that can be used to predict the types of locations where microclips are taken at.
 
 ![Venue Classifier](https://github.com/bingoyahoo/cs2108assignment2/blob/master/Latest%20Screenshot.png)
@@ -6,7 +6,7 @@ This is a simple audio-based venue classifier program that can be used to predic
 We have extracted and generated some acoustic, visual and textual features based on the given training and validation video dataset to perform the classification. kNN and late-fusion are used to combine results from the different features.
 
 ---
-##General Notes:
+## General Notes:
 
 1. To run, install dependencies including opencv, moviepy, pyqt etc.
 
@@ -18,7 +18,7 @@ We have extracted and generated some acoustic, visual and textual features based
 2. Simply run "python UI.py" from terminal/command prompt! Enjoy!
 
 ---
-###For Developers:
+### For Developers:
 
 1. The `data` directory stores the several video samples in `/video/`, and the corresponding extracted key frames, and audio clips in `/frame/` and `/audio/` paths, respectively.
 
@@ -31,7 +31,7 @@ We have extracted and generated some acoustic, visual and textual features based
 5. The `UI` python package provides the basic UI to present the key frames of the selected videos, and their estimated venue categories, which is need to be done by yourselves.
 
 ---
-##Notes
+## Notes
 Three of the microclips have some audio issues. They are listed in
 errors.txt. They throw an exception with getAudioClip().
 
